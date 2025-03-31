@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "mkdir -p build && cp -r *.html *.js *.json data build/ && echo 'Build completed successfully'",
+    "build:css": "tailwindcss -i ./src/input.css -o ./build/style.css --minify",
+    "build": "npm run build:css && cp index.html build/ && cp index.js build/ && cp utils.js build/ && cp -r data build/ && echo 'Build completed successfully'",
     "test": "echo \"Error: no test specified\" && exit 1",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"

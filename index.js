@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let isSubmitted = false;
   let isModified = false;
   let entryInputModes = {}; // Will store entry.id -> 'percent' or 'hours'
+  let userInfo = null; // Store user info
   
   // Load fake data for testing if in debug mode
   if (debugMode) {
@@ -38,6 +39,15 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Render the initial state
   render();
+
+  // --- NEW: Initialize Auth on Load ---
+  (async () => {
+    userInfo = await getUserInfoFromAuthEndpoint();
+    console.log("User info on load:", userInfo);
+    updateAuthUI(); // Update UI based on login status
+    loadData(formatWeekRange(currentWeek)); // Load data for the initial week after getting user info
+  })();
+  // --- END: Initialize Auth on Load ---
 
   // Add a global click event listener to close dropdowns when clicking outside
   document.addEventListener('click', function(event) {
@@ -161,31 +171,41 @@ document.addEventListener('DOMContentLoaded', function() {
                   Weekly Time Allocation
                 </h3>
               </div>
-              <div class="user-dropdown">
-                <button id="user-dropdown-btn" class="flex items-center text-indigo-700 hover:text-indigo-900 focus:outline-none">
-                  <span class="font-medium mr-1">Alex Theodossiou</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-1">
-                    <path d="m6 9 6 6 6-6"/>
-                  </svg>
-                </button>
-                <div id="user-dropdown-content" class="user-dropdown-content">
-                  <a href="#" class="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
-                      <rect x="3" y="3" width="7" height="7"></rect>
-                      <rect x="14" y="3" width="7" height="7"></rect>
-                      <rect x="14" y="14" width="7" height="7"></rect>
-                      <rect x="3" y="14" width="7" height="7"></rect>
+              <!-- Authentication Section -->
+              <div id="auth-section">
+                <!-- Logged Out View -->
+                <div id="login-view">
+                  <button id="login-button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                      Login with Microsoft
+                  </button>
+                </div>
+                <!-- Logged In View (User Dropdown) -->
+                <div id="user-view" class="user-dropdown hidden"> <!-- Initially hidden -->
+                  <button id="user-dropdown-btn" class="flex items-center text-indigo-700 hover:text-indigo-900 focus:outline-none">
+                    <span id="user-name" class="font-medium mr-1">User</span> <!-- Placeholder for name -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-1">
+                      <path d="m6 9 6 6 6-6"/>
                     </svg>
-                    Dashboard
-                  </a>
-                  <a href="#" class="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
-                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                      <polyline points="16 17 21 12 16 7"></polyline>
-                      <line x1="21" y1="12" x2="9" y2="12"></line>
-                    </svg>
-                    Logout
-                  </a>
+                  </button>
+                  <div id="user-dropdown-content" class="user-dropdown-content">
+                    <a href="#" id="dashboard-link" class="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                      </svg>
+                      Dashboard
+                    </a>
+                    <a href="/.auth/logout?post_logout_redirect_uri=/" id="logout-button" class="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                      </svg>
+                      Logout
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
@@ -254,53 +274,42 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function initializeEventListeners() {
-    // Pin button
-    document.getElementById('pin-button').addEventListener('click', togglePin);
+    // --- Auth Buttons ---
+    const loginButton = document.getElementById('login-button');
+    if (loginButton) {
+        loginButton.addEventListener('click', () => {
+            window.location.href = '/.auth/login/aad'; // Redirect to Azure AD login
+        });
+    }
     
-    // Week navigation
+    // User dropdown toggle
+    const userDropdownButton = document.getElementById('user-dropdown-btn');
+    if (userDropdownButton) {
+        userDropdownButton.addEventListener('click', (event) => {
+             event.stopPropagation(); // Prevent global click listener from closing it immediately
+             const content = document.getElementById('user-dropdown-content');
+             if (content) {
+                 content.classList.toggle('show');
+             }
+        });
+    }
+    // Note: Logout is handled by the href in createInitialHTML
+    // const logoutButton = document.getElementById('logout-button');
+    // if (logoutButton) { ... }
+
+    // --- Other Buttons ---
     document.getElementById('prev-week-button').addEventListener('click', goToPreviousWeek);
     document.getElementById('next-week-button').addEventListener('click', goToNextWeek);
-    
-    // Add project button
     document.getElementById('add-project-button').addEventListener('click', addEntry);
-    
-    // Submit button
-    document.getElementById('submit-button').addEventListener('click', submitTimesheet);
-    
-    // User dropdown button
-    const userDropdownBtn = document.getElementById('user-dropdown-btn');
-    const userDropdownContent = document.getElementById('user-dropdown-content');
-    
-    if (userDropdownBtn && userDropdownContent) {
-      // Toggle dropdown when clicking the button
-      userDropdownBtn.addEventListener('click', function(event) {
-        userDropdownContent.classList.toggle('show');
-        event.stopPropagation();
-      });
-      
-      // Close dropdown when clicking elsewhere on the page
-      document.addEventListener('click', function(event) {
-        if (!event.target.closest('.user-dropdown') && userDropdownContent.classList.contains('show')) {
-          userDropdownContent.classList.remove('show');
-        }
-      });
-      
-      // Handle dropdown menu items
-      userDropdownContent.querySelectorAll('a').forEach(item => {
-        item.addEventListener('click', function(event) {
-          event.preventDefault();
-          const action = this.textContent.trim();
-          
-          if (action === 'Dashboard') {
-            showReportsPage();
-          } else {
-            alert(`You clicked: ${action}`);
-          }
-          
-          userDropdownContent.classList.remove('show');
-        });
-      });
-    }
+    document.getElementById('submit-button').addEventListener('click', () => {
+        const weekStr = formatWeekRange(currentWeek);
+        const entriesToSave = entries.map(e => ({ projectId: e.projectId, percentage: parseInt(e.percentage || '0') }));
+        saveData(weekStr, entriesToSave); // Use the new save function
+    });
+    document.getElementById('pin-button').addEventListener('click', togglePin);
+
+    // Add event listeners for dynamically added elements (using event delegation on the container)
+    const entriesContainer = document.getElementById('entries-container');
 
     // Add event listener for repositioning open dropdowns on resize
     window.addEventListener('resize', () => {
@@ -624,6 +633,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     render();
+    loadData(formatWeekRange(currentWeek)); // Load data for the new week
   }
 
   function goToNextWeek() {
@@ -676,6 +686,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     render();
+    loadData(formatWeekRange(currentWeek)); // Load data for the new week
   }
 
   function addEntry() {
@@ -876,52 +887,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function submitTimesheet() {
-    const total = calculateTotalWrapper();
-    
-    if (total !== 100) {
-      error = "Total percentage must equal 100%";
-      render();
-      return;
-    }
-    
-    if (entries.some(entry => !entry.projectId)) {
-      error = "Please select a project for all entries";
-      render();
-      return;
-    }
-    
-    // Check for duplicate projects
-    const projectIds = entries.map(entry => entry.projectId);
-    const uniqueProjectIds = new Set(projectIds);
-    
-    if (uniqueProjectIds.size !== projectIds.length) {
-      error = "Duplicate projects are not allowed";
-      render();
-      return;
-    }
-    
-    // In a real app, you would send this data to an API
-    const timesheetData = {
-      weekStarting: formatWeekRange(currentWeek),
-      entries: entries.map(entry => ({
-        projectId: entry.projectId,
-        projectName: projects.find(p => p.id.toString() === entry.projectId)?.name,
-        percentage: entry.percentage
-      })),
-      total: total
-    };
-    
-    console.log("Submitting timesheet:", timesheetData);
-    
-    // Store this week's entries for future reference
-    const weekKey = formatWeekRange(currentWeek);
-    previousSubmissions[weekKey] = [...entries];
-    
-    // Update submission state
-    isSubmitted = true;
-    isModified = false;
-    
-    render();
+    return false;
   }
 
   function updateSubmitButton() {
@@ -1507,4 +1473,149 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
+
+  // --- NEW: Authentication and Data Functions ---
+  async function getUserInfoFromAuthEndpoint() {
+    try {
+      const response = await fetch('/.auth/me');
+      if (!response.ok) {
+        // Not logged in or error
+        console.log("User not logged in or /.auth/me failed.");
+        return null;
+      }
+      const payload = await response.json();
+      return payload.clientPrincipal;
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+      return null;
+    }
+  }
+
+  async function saveData(weekData, allocationEntries) {
+    if (!userInfo) {
+      console.error("Cannot save data: user not logged in.");
+      error = "You must be logged in to save data.";
+      render();
+      return; 
+    }
+    try {
+        console.log(`Saving data for week: ${weekData}`);
+        const response = await fetch('/api/SaveTimeAllocation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ week: weekData, entries: allocationEntries })
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`API Error (${response.status}): ${errorBody}`);
+        }
+
+        const result = await response.json();
+        console.log('Save successful:', result);
+        isModified = false; // Reset modification state after successful save
+        isSubmitted = true; // Mark as submitted for the current view
+        previousSubmissions[weekData] = allocationEntries; // Update local cache
+        render(); // Re-render to show confirmation/updated state
+
+    } catch (err) {
+        console.error('Error saving data:', err);
+        error = `Failed to save timesheet: ${err.message}`;
+        render(); // Re-render to show the error
+    }
+  }
+
+  async function loadData(weekData) {
+     if (!userInfo) {
+        console.log("User not logged in, skipping data load.");
+        // Optionally clear entries or show a message if needed when logged out
+        entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset to default
+        manuallyEditedIds = new Set();
+        isSubmitted = false;
+        isModified = false;
+        render();
+        return; 
+    }
+    console.log(`Loading data for week: ${weekData}`);
+    // Check local cache first (optional, but good for performance)
+    // if (previousSubmissions[weekData]) {
+    //    console.log("Loading from cache for week:", weekData);
+    //    entries = previousSubmissions[weekData].map(e => ({...e, id: Date.now() + Math.random() })); // Assign new IDs if needed
+    //    isSubmitted = true;
+    //    isModified = false;
+    //    render();
+    //    return;
+    // }
+
+    try {
+        const response = await fetch(`/api/GetTimeAllocations?week=${encodeURIComponent(weekData)}`);
+        if (!response.ok) {
+             if (response.status === 404) { // Common if no data exists yet
+                 console.log("No data found for week:", weekData);
+                 entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset to default
+                 isSubmitted = false;
+             } else {
+                 const errorBody = await response.text();
+                 throw new Error(`API Error (${response.status}): ${errorBody}`);
+             }
+        } else {
+            const loadedEntries = await response.json();
+            if (loadedEntries && loadedEntries.length > 0) {
+                entries = loadedEntries.map(entry => ({ 
+                    id: Date.now() + Math.random(), // Generate a unique ID for the UI
+                    projectId: entry.ProjectId, 
+                    percentage: entry.Percentage.toString(), // Ensure it's a string for input
+                    isManuallySet: false // Assume loaded data wasn't manually set in this session
+                }));
+                isSubmitted = true; // Mark as submitted if data was loaded
+                previousSubmissions[weekData] = entries.map(e => ({ projectId: e.projectId, percentage: parseInt(e.percentage) })); // Update cache
+            } else {
+                 entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset to default if empty array returned
+                 isSubmitted = false;
+            }
+        }
+        
+        manuallyEditedIds = new Set(); // Reset manual edits on load
+        isModified = false; // Reset modification state on load
+        render(); // Re-render with loaded or default data
+
+    } catch (err) {
+        console.error('Error loading data:', err);
+        error = `Failed to load timesheet: ${err.message}`;
+        // Decide how to handle load errors, maybe keep existing entries or reset?
+        entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset on error?
+        isSubmitted = false;
+        isModified = false;
+        render(); // Re-render to show the error and reset state
+    }
+  }
+  // --- END: Authentication and Data Functions ---
+
+  // --- NEW: Update Auth UI ---
+  function updateAuthUI() {
+    const loginView = document.getElementById('login-view');
+    const userView = document.getElementById('user-view');
+    const userNameSpan = document.getElementById('user-name');
+
+    if (!loginView || !userView || !userNameSpan) {
+        console.error("Auth UI elements not found!");
+        return;
+    }
+
+    if (userInfo) {
+      // Logged in
+      loginView.classList.add('hidden');
+      userView.classList.remove('hidden');
+      // Use userDetails if available (common with AAD), fallback to userId
+      userNameSpan.textContent = userInfo.userDetails || userInfo.userId;
+    } else {
+      // Logged out
+      loginView.classList.remove('hidden');
+      userView.classList.add('hidden');
+      userNameSpan.textContent = 'User'; // Reset placeholder
+    }
+  }
+  // --- END: Update Auth UI ---
 });
