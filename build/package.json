@@ -1,0 +1,45 @@
+{
+  "name": "weekly-percentage-tracker",
+  "version": "1.0.0",
+  "description": "A web application to track weekly time allocation across different projects",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "mkdir -p build && cp -r *.html *.js *.json build/ && echo 'Build completed successfully'",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
+  },
+  "keywords": [
+    "timesheet",
+    "tracker",
+    "percentage",
+    "weekly"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theo886/EngTimesheets.git"
+  },
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/theo886/EngTimesheets/issues"
+  },
+  "homepage": "https://github.com/theo886/EngTimesheets#readme",
+  "dependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.0.12"
+  },
+  "devDependencies": {
+    "@chromatic-com/storybook": "^3.2.5",
+    "@storybook/addon-essentials": "^8.6.4",
+    "@storybook/addon-interactions": "^8.6.4",
+    "@storybook/blocks": "^8.6.4",
+    "@storybook/html": "^8.6.4",
+    "@storybook/html-vite": "^8.6.4",
+    "@storybook/test": "^8.6.4",
+    "storybook": "^8.6.4"
+  }
+}

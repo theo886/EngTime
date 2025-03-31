@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weekly Percentage Tracker</title>
+  <!-- Tailwind CDN for styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js for graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 py-8">
+  <!-- Container for the Weekly Tracker -->
+  <div id="weekly-tracker"></div>
+  
+  <!-- Container for the Reports Page (hidden by default) -->
+  <div id="reports-container" class="hidden"></div>
+  
+  <!-- Include the JavaScript files in the right order -->
+  <script src="utils.js"></script>
+  <script src="data/projectData.js"></script>
+  <script src="sampleData.js"></script>
+  <script src="index.js"></script>
+</body>
+</html>
