@@ -22,10 +22,10 @@ module.exports = async function (context, req) {
     }
 
     const userId = clientPrincipal.userId; // Use this ID to associate data with the user
-    const { week, entries } = req.body; // Expecting { week: "MM/DD/YYYY - MM/DD/YYYY", entries: [{ projectId: "...", percentage: ... }] }
+    const { week, userEmail, entries } = req.body; // Expecting { week: "MM/DD/YYYY - MM/DD/YYYY", userEmail: "...", entries: [{ projectId: "...", percentage: ... }] }
 
-    if (!week || !Array.isArray(entries)) {
-        context.res = { status: 400, body: "Invalid request body. Expecting 'week' and 'entries' array." };
+    if (!week || !userEmail || !Array.isArray(entries)) {
+        context.res = { status: 400, body: "Invalid request body. Expecting 'week', 'userEmail', and 'entries' array." };
         return;
     }
 
@@ -56,7 +56,8 @@ module.exports = async function (context, req) {
                                        .input('Week', sql.NVarChar, week)
                                        .input('ProjectId', sql.NVarChar, entry.projectId) // Adjust type/length if needed
                                        .input('Percentage', sql.Int, parseInt(entry.percentage)) // Ensure percentage is stored as int
-                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, Percentage) VALUES (@UserId, @Week, @ProjectId, @Percentage)'); // TODO: Replace TimeAllocations with actual table name
+                                       .input('UserEmail', sql.NVarChar, userEmail) // Assumes NVARCHAR column
+                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, Percentage, UserEmail) VALUES (@UserId, @Week, @ProjectId, @Percentage, @UserEmail)'); // TODO: Replace TimeAllocations with actual table name
                 }
             }
 
