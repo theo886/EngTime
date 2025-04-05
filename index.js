@@ -540,7 +540,7 @@ document.addEventListener('DOMContentLoaded', function() {
       percentageDiv.className = 'col-span-3 sm:col-span-2 md:col-span-1';
       
       const inputContainer = document.createElement('div');
-      inputContainer.className = 'relative w-20 mx-auto';
+      inputContainer.className = 'relative w-18 mx-auto';
       
       const input = document.createElement('input');
       input.type = 'number';
@@ -557,7 +557,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Convert percentage to hours (40 hours = 100%)
         input.value = Math.round((parseFloat(entry.percentage) / 100) * 40 * 10) / 10;
       }
-      
       // Determine background color based on manual edit status
       const bgColorClass = manuallyEditedIds.has(entry.id) ? 'bg-white' : 'bg-slate-50';
       
