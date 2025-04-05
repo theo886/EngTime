@@ -1424,12 +1424,18 @@ document.addEventListener('DOMContentLoaded', function() {
             weeklyTrackerContainer?.classList.remove('hidden'); // Show app content AFTER loading data
         } else {
             updateAuthUI(); // Update UI to show login view
-            weeklyTrackerContainer?.classList.add('hidden'); // Hide app content
+            resetEntriesToDefault(); // Reset the view to default when logged out
+            render(); // Re-render to show the cleared state
+            // Ensure the container is visible so the login button can be shown by updateAuthUI
+            weeklyTrackerContainer?.classList.remove('hidden'); 
         }
     } catch (error) {
         console.error("Error checking auth status:", error);
         updateAuthUI(); // Show login on error
-        weeklyTrackerContainer?.classList.add('hidden'); // Hide app content
+        resetEntriesToDefault(); // Reset the view on error too
+        render(); // Re-render to show the cleared state
+        // Ensure the container is visible on error too
+        weeklyTrackerContainer?.classList.remove('hidden');
     }
   }
 
