@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const container = document.getElementById('weekly-tracker');
   if (container) {
       container.innerHTML = createInitialHTML();
+      initializeEventListeners(); // Initialize listeners after creating HTML
       container.classList.add('hidden'); // Start hidden until auth check
   } else {
       console.error("Could not find #weekly-tracker container");
@@ -1419,7 +1420,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (userInfo) {
             updateAuthUI(); // Update login/logout UI (handles showing user view)
-            initializeEventListeners(); // Initialize app event listeners AFTER auth
             await loadAllDataIntoCache(); // <<< CALL NEW FUNCTION HERE
             weeklyTrackerContainer?.classList.remove('hidden'); // Show app content AFTER loading data
         } else {
