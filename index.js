@@ -92,6 +92,16 @@ document.addEventListener('DOMContentLoaded', function() {
     return monday;
   }
 
+  // Helper function to get the Monday of a given date's week
+  function getStartOfWeek(date) {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 is Sunday
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    const monday = new Date(d.setDate(diff));
+    monday.setHours(0, 0, 0, 0); // Reset time to start of day
+    return monday;
+  }
+
   function createInitialHTML() {
     return `
       <style>
@@ -387,6 +397,23 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update submit button
     updateSubmitButton();
+
+    // --- Disable/Enable Next Week Button ---
+    const nextWeekButton = document.getElementById('next-week-button');
+    if (nextWeekButton) {
+        const today = new Date();
+        const startOfCurrentRealWeek = getStartOfWeek(today);
+
+        // Compare the start of the displayed week with the start of the *actual* current week
+        if (currentWeek.getTime() >= startOfCurrentRealWeek.getTime()) {
+            nextWeekButton.disabled = true;
+            nextWeekButton.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            nextWeekButton.disabled = false;
+            nextWeekButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    }
+    // --- End Disable/Enable Next Week Button ---
   }
 
   function renderEntries() {
