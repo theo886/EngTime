@@ -15,39 +15,33 @@ document.addEventListener('DOMContentLoaded', function() {
   let entries = [
     { id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }
   ];
+  let allTimesheetDataCache = {}; // Cache for all user data { "weekString": [{ projectId, percentage }] }
   let manuallyEditedIds = new Set();
   let isAnyDropdownOpen = false;
   let isPinned = false;
   let error = "";
-  let previousSubmissions = {};
   let isSubmitted = false;
   let isModified = false;
   let entryInputModes = {}; // Will store entry.id -> 'percent' or 'hours'
   let userInfo = null; // Store user info
   
-  // Load fake data for testing if in debug mode
-  if (debugMode) {
-    previousSubmissions = loadFakeDataForTesting(currentWeek, formatWeekRange);
-  }
+  // // Load fake data for testing if in debug mode
+  // if (debugMode) {
+  //   previousSubmissions = loadFakeDataForTesting(currentWeek, formatWeekRange);
+  // }
 
   // DOM elements
-  const container = document.getElementById('weekly-tracker') || document.body;
-  container.innerHTML = createInitialHTML();
-  
-  // Initialize event listeners
-  initializeEventListeners();
-  
-  // Render the initial state
-  render();
+  const container = document.getElementById('weekly-tracker');
+  if (container) {
+      container.innerHTML = createInitialHTML();
+      container.classList.add('hidden'); // Start hidden until auth check
+  } else {
+      console.error("Could not find #weekly-tracker container");
+      return; // Stop if container isn't found
+  }
 
-  // --- NEW: Initialize Auth on Load ---
-  (async () => {
-    userInfo = await getUserInfoFromAuthEndpoint();
-    console.log("User info on load:", userInfo);
-    updateAuthUI(); // Update UI based on login status
-    loadData(formatWeekRange(currentWeek)); // Load data for the initial week after getting user info
-  })();
-  // --- END: Initialize Auth on Load ---
+  // Call checkAuthStatus (which now handles listeners and initial load)
+  checkAuthStatus();
 
   // Add a global click event listener to close dropdowns when clicking outside
   document.addEventListener('click', function(event) {
@@ -302,9 +296,15 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('next-week-button').addEventListener('click', goToNextWeek);
     document.getElementById('add-project-button').addEventListener('click', addEntry);
     document.getElementById('submit-button').addEventListener('click', () => {
-        const weekStr = formatWeekRange(currentWeek);
-        const entriesToSave = entries.map(e => ({ projectId: e.projectId, percentage: parseInt(e.percentage || '0') }));
-        saveData(weekStr, entriesToSave); // Use the new save function
+      const weekStr = formatWeekRange(currentWeek);
+      // Prepare entries in the format expected by the API/cache update
+      const entriesToSave = entries
+          .filter(e => e.projectId) // Only include entries with a selected project
+          .map(e => ({
+              projectId: e.projectId,
+              percentage: parseInt(e.percentage || '0', 10) // Ensure it's an integer
+          }));
+      saveData(weekStr, entriesToSave); // Call the modified save function
     });
     document.getElementById('pin-button').addEventListener('click', togglePin);
 
@@ -584,109 +584,51 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function goToPreviousWeek() {
-    const prevWeek = new Date(currentWeek);
-    prevWeek.setDate(prevWeek.getDate() - 7);
-    currentWeek = prevWeek;
-    
-    // Reset input modes
-    entryInputModes = {};
-    
-    // If pinned, keep the current entries (matching the behavior of goToNextWeek)
+    const prevWeekDate = new Date(currentWeek);
+    prevWeekDate.setDate(prevWeekDate.getDate() - 7);
+    currentWeek = prevWeekDate;
+    const weekKey = formatWeekRange(currentWeek);
+
     if (isPinned) {
-      // Just clone the current entries with new IDs
-      entries = entries.map(entry => {
-        const newId = Date.now() + Math.random(); // Generate new IDs
-        entryInputModes[newId] = 'percent'; // Set default input mode
-        return {
-          ...entry,
-          id: newId
-        };
-      });
-      isSubmitted = false;
-      isModified = false;
+        // Keep current entries, generate new IDs, reset modified/submitted state
+         entries = entries.map(entry => {
+             const newId = Date.now() + Math.random();
+             return { ...entry, id: newId, isManuallySet: false };
+         });
+         manuallyEditedIds = new Set();
+         entryInputModes = {};
+         isSubmitted = false; // Treat pinned week as not submitted yet
+         isModified = false;
+         render(); // Render immediately with pinned data
     } else {
-      // Check if we have stored entries for the previous week
-      const prevWeekKey = formatWeekRange(prevWeek);
-      const previousWeekEntries = previousSubmissions[prevWeekKey];
-      
-      // Check if the previous week was submitted
-      isSubmitted = !!previousWeekEntries;
-      isModified = false;
-      
-      // If we have previous entries for this week, use them
-      if (previousWeekEntries && previousWeekEntries.length > 0) {
-        entries = previousWeekEntries.map(entry => {
-          const newId = Date.now() + Math.random(); // Generate new IDs
-          entryInputModes[newId] = 'percent'; // Set default input mode
-          return {
-            ...entry,
-            id: newId
-          };
-        });
-      } else {
-        // Otherwise start with a blank slate
-        const newId = Date.now();
-        entries = [{ id: newId, projectId: "", percentage: "100", isManuallySet: false }];
-        entryInputModes[newId] = 'percent'; // Set default input mode
-        manuallyEditedIds = new Set();
-      }
+        // Use the cache
+        populateEntriesFromCache(weekKey); // This handles render()
     }
-    
-    render();
-    loadData(formatWeekRange(currentWeek)); // Load data for the new week
+    // loadData(formatWeekRange(currentWeek)); // REMOVE old loadData call
   }
 
   function goToNextWeek() {
-    const nextWeek = new Date(currentWeek);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    currentWeek = nextWeek;
-    
-    // Reset input modes
-    entryInputModes = {};
-    
-    // If pinned, keep the current entries
+    const nextWeekDate = new Date(currentWeek);
+    nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+    currentWeek = nextWeekDate;
+    const weekKey = formatWeekRange(currentWeek);
+
     if (isPinned) {
-      // Just clone the current entries with new IDs
-      entries = entries.map(entry => {
-        const newId = Date.now() + Math.random(); // Generate new IDs
-        entryInputModes[newId] = 'percent'; // Set default input mode
-        return {
-          ...entry,
-          id: newId
-        };
-      });
-      isSubmitted = false;
-      isModified = false;
+         // Keep current entries, generate new IDs, reset modified/submitted state
+         entries = entries.map(entry => {
+             const newId = Date.now() + Math.random();
+             return { ...entry, id: newId, isManuallySet: false };
+         });
+         manuallyEditedIds = new Set();
+         entryInputModes = {};
+         isSubmitted = false; // Treat pinned week as not submitted yet
+         isModified = false;
+         render(); // Render immediately with pinned data
     } else {
-      // Get the next week's entries if they exist
-      const nextWeekKey = formatWeekRange(nextWeek);
-      const previousWeekEntries = previousSubmissions[nextWeekKey];
-      
-      // Check if the next week was submitted
-      isSubmitted = !!previousWeekEntries;
-      isModified = false;
-      
-      // If we have previous entries for the next week, use them
-      if (previousWeekEntries && previousWeekEntries.length > 0) {
-        entries = previousWeekEntries.map(entry => {
-          const newId = Date.now() + Math.random(); // Generate new IDs
-          entryInputModes[newId] = 'percent'; // Set default input mode
-          return {
-            ...entry,
-            id: newId
-          };
-        });
-      } else {
-        // Otherwise start with a blank slate
-        const newId = Date.now();
-        entries = [{ id: newId, projectId: "", percentage: "100", isManuallySet: false }];
-        entryInputModes[newId] = 'percent'; // Set default input mode
-        manuallyEditedIds = new Set();
-      }
+        // Use the cache
+        populateEntriesFromCache(weekKey); // This handles render()
     }
-    
-    render();
-    loadData(formatWeekRange(currentWeek)); // Load data for the new week
+    // loadData(formatWeekRange(currentWeek)); // REMOVE old loadData call
   }
 
   function addEntry() {
@@ -1005,7 +947,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Show warning if using sample data
     const noDataMessage = document.getElementById('no-data-message');
-    if (Object.keys(previousSubmissions).length === 0) {
+    if (Object.keys(allTimesheetDataCache).length === 0) {
       noDataMessage.classList.remove('hidden');
     } else {
       noDataMessage.classList.add('hidden');
@@ -1020,9 +962,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Process project data for the charts
   function processProjectData() {
-    // Gather all submissions
-    const submissionWeeks = Object.keys(previousSubmissions);
-    console.log("Found submission weeks:", submissionWeeks);
+    // Gather all submissions from the cache
+    const submissionWeeks = Object.keys(allTimesheetDataCache); // <<< Use allTimesheetDataCache
+    console.log("Found submission weeks from cache:", submissionWeeks);
     
     // Time series data structure
     const timeData = {
@@ -1040,15 +982,21 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Helper function to convert week string to Date object for proper sorting
     const getWeekStartDate = (weekStr) => {
-      // Extract the start date from format like "3/10/2025 - 3/16/2025"
+      // Extract the start date from format like "MM/DD/YYYY - MM/DD/YYYY"
       const startDateStr = weekStr.split(' - ')[0];
-      const [month, day, year] = startDateStr.split('/').map(Number);
+      // Handle potential variations in date format (e.g., single digit month/day)
+      const parts = startDateStr.split('/');
+      if (parts.length !== 3) {
+          console.error(`Invalid date format in week string: ${weekStr}`);
+          return new Date(); // Return current date as fallback
+      }
+      const [month, day, year] = parts.map(Number);
       return new Date(year, month - 1, day); // Note: months are 0-indexed in JS Date
     };
     
-    // Check if we have actual submissions
+    // Check if we have actual submissions in the cache
     if (submissionWeeks.length > 0) {
-      console.log("Using real submission data for charts");
+      console.log("Using real submission data from cache for charts");
       totalWeeks = submissionWeeks.length;
       
       // Sort weeks chronologically by start date
@@ -1058,16 +1006,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return dateA - dateB;
       });
       
-      console.log("Chronologically sorted weeks:", sortedWeeks);
+      console.log("Chronologically sorted weeks from cache:", sortedWeeks);
       
       // First pass: track when each project first appears
       sortedWeeks.forEach((week, weekIndex) => {
-        const weekEntries = previousSubmissions[week];
-        
+        const weekEntries = allTimesheetDataCache[week]; // <<< Use allTimesheetDataCache
+        if (!weekEntries) return; // Skip if cache entry is missing for some reason
+
         weekEntries.forEach(entry => {
-          if (!entry.projectId) return;
+          if (!entry.ProjectId) return; // <<< Check ProjectId (cache format)
           
-          const projectName = projects.find(p => p.id.toString() === entry.projectId)?.name || 'Unknown';
+          const projectName = projects.find(p => p.id.toString() === entry.ProjectId)?.name || 'Unknown'; // <<< Use ProjectId
           
           // Record the first week this project appears
           if (projectFirstAppearance[projectName] === undefined) {
@@ -1078,7 +1027,9 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Process each submitted week in chronological order
       sortedWeeks.forEach((week, weekIndex) => {
-        const weekEntries = previousSubmissions[week];
+        const weekEntries = allTimesheetDataCache[week]; // <<< Use allTimesheetDataCache
+        if (!weekEntries) return; // Skip if cache entry is missing
+
         // Get the start date from the week string and format it
         const weekStartDate = getWeekStartDate(week);
         timeData.labels.push(formatWeekStart(weekStartDate));
@@ -1086,10 +1037,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Process each entry in this week
         weekEntries.forEach(entry => {
           // Skip entries with no project
-          if (!entry.projectId) return;
+          if (!entry.ProjectId) return; // <<< Check ProjectId
           
-          const projectName = projects.find(p => p.id.toString() === entry.projectId)?.name || 'Unknown';
-          const percentage = parseInt(entry.percentage) || 0;
+          const projectName = projects.find(p => p.id.toString() === entry.ProjectId)?.name || 'Unknown'; // <<< Use ProjectId
+          const percentage = parseInt(entry.Percentage) || 0; // <<< Use Percentage (cache format)
           
           // Add to project totals
           if (!projectTotals[projectName]) {
@@ -1103,8 +1054,8 @@ document.addEventListener('DOMContentLoaded', function() {
           let dataset = timeData.datasets.find(ds => ds.label === projectName);
           if (!dataset) {
             // Use project color from the projects array for consistency
-            const projectObj = projects.find(p => p.id.toString() === entry.projectId);
-            const color = projectObj?.color || `hsl(${(parseInt(entry.projectId) * 137) % 360}, 70%, 60%)`;
+            const projectObj = projects.find(p => p.id.toString() === entry.ProjectId); // <<< Use ProjectId
+            const color = projectObj?.color || `hsl(${(parseInt(entry.ProjectId) * 137) % 360}, 70%, 60%)`; // <<< Use ProjectId
             
             dataset = {
               label: projectName,
@@ -1139,12 +1090,14 @@ document.addEventListener('DOMContentLoaded', function() {
         weekTotals[project] = Math.round(weekTotals[project] / totalWeeks);
       });
     } else {
-      console.log("No submissions found, using current entry data or sample data");
+      // <<< Logic for when cache is empty (no submissions) >>>
+      console.log("Cache is empty, attempting to use current entry data or sample data for reports");
       
       // Check if we have current entries with projects selected
       const currentEntries = entries.filter(entry => entry.projectId);
       
       if (currentEntries.length > 0) {
+          console.log("Using current unsaved entries for projected report.");
         // Use current week's data as a starting point
         const currentWeekFormatted = formatWeekStart(currentWeek);
         timeData.labels.push(currentWeekFormatted);
@@ -1157,36 +1110,34 @@ document.addEventListener('DOMContentLoaded', function() {
           // Add to project totals
           if (!projectTotals[projectName]) {
             projectTotals[projectName] = 0;
-            weekTotals[projectName] = 0;
+            // Don't track weekTotals here as it's not submitted data
           }
           projectTotals[projectName] += percentage;
-          weekTotals[projectName] += percentage;
+          // weekTotals[projectName] += percentage; // Removed for projected data
           
           // Find or create dataset for this project
           let dataset = timeData.datasets.find(ds => ds.label === projectName);
           if (!dataset) {
-            // Use project color from the projects array for consistency
             const projectObj = projects.find(p => p.id.toString() === entry.projectId);
             const color = projectObj?.color || `hsl(${(parseInt(entry.projectId) * 137) % 360}, 70%, 60%)`;
             
             dataset = {
               label: projectName,
-              data: Array(timeData.labels.length - 1).fill(0), // Fill with zeros for previous weeks
+              data: Array(timeData.labels.length - 1).fill(0),
               backgroundColor: color,
               borderColor: color,
               borderWidth: 2,
               tension: 0.3,
-              // Store first appearance info for sorting
-              firstAppearance: projectFirstAppearance[projectName] || 0
+              firstAppearance: projectFirstAppearance[projectName] || 0, // Keep for consistency if needed
+              orderIndex: index // Store order for sorting later if needed
             };
             timeData.datasets.push(dataset);
           }
           
-          // Add this week's percentage
           dataset.data.push(percentage);
         });
         
-        // Create array of weeks in chronological order
+        // Generate labels for prev/next week for projection context
         const prevWeek = new Date(currentWeek);
         prevWeek.setDate(prevWeek.getDate() - 7);
         const prevWeekFormatted = formatWeekStart(prevWeek);
@@ -1195,85 +1146,56 @@ document.addEventListener('DOMContentLoaded', function() {
         nextWeek.setDate(nextWeek.getDate() + 7);
         const nextWeekFormatted = formatWeekStart(nextWeek);
         
-        // Clear current labels and use the ordered array
         timeData.labels = [prevWeekFormatted, currentWeekFormatted, nextWeekFormatted];
         
-        // Update the datasets to match the ordered labels
+        // Update datasets for the 3-week projection
         timeData.datasets.forEach(dataset => {
-          // Current value is already set for currentWeekFormatted (index 1)
-          const currentValue = dataset.data[0];
-          
-          // Generate values for other weeks
-          const prevVariation = Math.floor(Math.random() * 10) - 5; // -5 to +5 variation
+          const currentValue = dataset.data[0]; // The only value we pushed earlier
+          // Simple projection: assume similar distribution +- small random variation
+          const prevVariation = Math.floor(Math.random() * 10) - 5;
           const prevValue = Math.max(0, Math.min(100, currentValue + prevVariation));
-          
-          const nextVariation = Math.floor(Math.random() * 10) - 5; // -5 to +5 variation
+          const nextVariation = Math.floor(Math.random() * 10) - 5;
           const nextValue = Math.max(0, Math.min(100, currentValue + nextVariation));
-          
-          // Set the data array to match the ordered labels
           dataset.data = [prevValue, currentValue, nextValue];
           
-          // Update project totals for pie chart
+          // Update project totals based on this 3-week projection for the pie chart
           projectTotals[dataset.label] = prevValue + currentValue + nextValue;
         });
         
-        // Sort datasets by their original order
-        timeData.datasets.sort((a, b) => a.orderIndex - b.orderIndex);
+        timeData.datasets.sort((a, b) => a.orderIndex - b.orderIndex); // Sort by original order
+        totalWeeks = 3; // For pie chart averaging, consider the 3 projected weeks
         
       } else {
-        // Fall back to sample data if no current project entries either
-        // Create sample week labels that are in chronological order
+        // <<< Fallback to hardcoded sample data if cache and current entries are empty >>>
+        console.log("Falling back to hardcoded sample data for reports.");
         const today = new Date();
-        const week1 = new Date(today);
-        week1.setDate(week1.getDate() - 21); // 3 weeks ago
-        
-        const week2 = new Date(today);
-        week2.setDate(week2.getDate() - 14); // 2 weeks ago
-        
-        const week3 = new Date(today);
-        week3.setDate(week3.getDate() - 7); // 1 week ago
-        
+        const week1 = new Date(today); week1.setDate(today.getDate() - 21);
+        const week2 = new Date(today); week2.setDate(today.getDate() - 14);
+        const week3 = new Date(today); week3.setDate(today.getDate() - 7);
         const week4 = new Date(today); // Current week
-        
-        // Format the weeks
-        timeData.labels = [
-          formatWeekStart(week1),
-          formatWeekStart(week2),
-          formatWeekStart(week3),
-          formatWeekStart(week4)
-        ];
+        timeData.labels = [formatWeekStart(week1), formatWeekStart(week2), formatWeekStart(week3), formatWeekStart(week4)];
         
         const sampleProjects = ['Website Redesign', 'Mobile App', 'Infrastructure'];
         sampleProjects.forEach((project, index) => {
           const hue = (index * 120) % 360;
           const color = `hsl(${hue}, 70%, 60%)`;
-          
-          const data = [
-            Math.floor(Math.random() * 40) + 10,
-            Math.floor(Math.random() * 40) + 10,
-            Math.floor(Math.random() * 40) + 10,
-            Math.floor(Math.random() * 40) + 10
-          ];
-          
+          const data = [ /* Sample data */ ]; // Keeping existing random generation
+          data.push(Math.floor(Math.random() * 40) + 10);
+          data.push(Math.floor(Math.random() * 40) + 10);
+          data.push(Math.floor(Math.random() * 40) + 10);
+          data.push(Math.floor(Math.random() * 40) + 10);
+
           timeData.datasets.push({
-            label: project,
-            data: data,
-            backgroundColor: color,
-            borderColor: color,
-            borderWidth: 2,
-            tension: 0.3,
-            // Store index for consistent ordering
-            orderIndex: index
+            label: project, data: data, backgroundColor: color, borderColor: color,
+            borderWidth: 2, tension: 0.3, orderIndex: index
           });
-          
-          // Add to project totals for the pie chart
           projectTotals[project] = data.reduce((sum, val) => sum + val, 0);
         });
+        totalWeeks = 4; // Based on sample data
       }
     }
     
-    // Prepare pie chart data - use the weekly averages for actual submissions
-    // or project totals for sample/projected data
+    // Prepare pie chart data
     const pieChartData = {
       labels: [],
       datasets: [{
@@ -1282,19 +1204,18 @@ document.addEventListener('DOMContentLoaded', function() {
       }]
     };
     
-    if (submissionWeeks.length > 0) {
-      // Use weekly averages for the pie chart
+    if (Object.keys(allTimesheetDataCache).length > 0) { // <<< Use allTimesheetDataCache check
+      // Use weekly averages for the pie chart when real data exists
       pieChartData.labels = Object.keys(weekTotals);
       pieChartData.datasets[0].data = Object.values(weekTotals);
     } else {
-      // Use project totals for the pie chart (for sample/projected data)
+      // Use project totals / totalWeeks for projected/sample data
       pieChartData.labels = Object.keys(projectTotals);
-      pieChartData.datasets[0].data = Object.values(projectTotals);
+      pieChartData.datasets[0].data = pieChartData.labels.map(label => Math.round(projectTotals[label] / (totalWeeks || 1)));
     }
     
     // Generate colors for the pie chart
     pieChartData.datasets[0].backgroundColor = pieChartData.labels.map((projectName, index) => {
-      // Find the project object to use its color
       const projectObj = projects.find(p => p.name === projectName);
       return projectObj?.color || `hsl(${(index * 137) % 360}, 70%, 60%)`;
     });
@@ -1302,7 +1223,7 @@ document.addEventListener('DOMContentLoaded', function() {
     return { 
       timeData, 
       totalData: pieChartData, 
-      totalWeeks: totalWeeks 
+      totalWeeks: Object.keys(allTimesheetDataCache).length > 0 ? totalWeeks : 0 // Only return real totalWeeks
     };
   }
 
@@ -1475,6 +1396,29 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // --- NEW: Authentication and Data Functions ---
+  async function checkAuthStatus() {
+    const weeklyTrackerContainer = document.getElementById('weekly-tracker'); // Get main content div
+    try {
+        // Use the existing function to get user info
+        userInfo = await getUserInfoFromAuthEndpoint(); 
+        console.log("User info from checkAuthStatus:", userInfo);
+
+        if (userInfo) {
+            updateAuthUI(); // Update login/logout UI (handles showing user view)
+            initializeEventListeners(); // Initialize app event listeners AFTER auth
+            await loadAllDataIntoCache(); // <<< CALL NEW FUNCTION HERE
+            weeklyTrackerContainer?.classList.remove('hidden'); // Show app content AFTER loading data
+        } else {
+            updateAuthUI(); // Update UI to show login view
+            weeklyTrackerContainer?.classList.add('hidden'); // Hide app content
+        }
+    } catch (error) {
+        console.error("Error checking auth status:", error);
+        updateAuthUI(); // Show login on error
+        weeklyTrackerContainer?.classList.add('hidden'); // Hide app content
+    }
+  }
+
   async function getUserInfoFromAuthEndpoint() {
     try {
       const response = await fetch('/.auth/me');
@@ -1496,102 +1440,124 @@ document.addEventListener('DOMContentLoaded', function() {
       console.error("Cannot save data: user not logged in.");
       error = "You must be logged in to save data.";
       render();
-      return; 
+      return;
     }
+
+    // --- Validations (Keep these) ---
+    const total = calculateTotal(allocationEntries.map(e => ({ percentage: String(e.percentage) }))); // Adapt validation if needed
+    if (total !== 100) {
+        error = "Total percentage must equal 100%";
+        render();
+        return;
+    }
+    if (allocationEntries.some(entry => !entry.projectId)) {
+        error = "Please select a project for all entries";
+        render();
+        return;
+    }
+    const projectIds = allocationEntries.map(entry => entry.projectId);
+    const uniqueProjectIds = new Set(projectIds);
+    if (uniqueProjectIds.size !== projectIds.length) {
+        error = "Duplicate projects are not allowed";
+        render();
+        return;
+    }
+    // --- End Validations ---
+
+    const submitButton = document.getElementById('submit-button');
+    submitButton.disabled = true;
+    submitButton.textContent = "Saving...";
+    error = ""; // Clear previous errors before saving
+
     try {
-        console.log(`Saving data for week: ${weekData}`);
         const response = await fetch('/api/SaveTimeAllocation', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ week: weekData, entries: allocationEntries })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ week: weekData, entries: allocationEntries }) // Send raw entries
         });
 
         if (!response.ok) {
             const errorBody = await response.text();
-            throw new Error(`API Error (${response.status}): ${errorBody}`);
+            throw new Error(`API Error (${response.status}): ${errorBody || response.statusText}`);
         }
 
         const result = await response.json();
         console.log('Save successful:', result);
-        isModified = false; // Reset modification state after successful save
+
+        // --- >>> UPDATE CACHE on success <<< ---
+        allTimesheetDataCache[weekData] = allocationEntries.map(e => ({
+            ProjectId: e.projectId, // Match cache structure (if different from API response)
+            Percentage: e.percentage // Store as number if consistent
+        }));
+        // --- >>> END UPDATE CACHE <<< ---
+
+        isModified = false; // Reset modification state
         isSubmitted = true; // Mark as submitted for the current view
-        previousSubmissions[weekData] = allocationEntries; // Update local cache
-        render(); // Re-render to show confirmation/updated state
 
     } catch (err) {
         console.error('Error saving data:', err);
         error = `Failed to save timesheet: ${err.message}`;
-        render(); // Re-render to show the error
+        // Do NOT change cache or flags on error
+    } finally {
+         render(); // Re-render to show confirmation/error/updated button state
     }
   }
 
-  async function loadData(weekData) {
-     if (!userInfo) {
-        console.log("User not logged in, skipping data load.");
-        // Optionally clear entries or show a message if needed when logged out
-        entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset to default
-        manuallyEditedIds = new Set();
-        isSubmitted = false;
-        isModified = false;
-        render();
-        return; 
+  // --- NEW: Function to fetch all data ---
+  async function loadAllDataIntoCache() {
+    if (!userInfo) {
+        console.log("User not logged in. Cannot fetch all data.");
+        allTimesheetDataCache = {}; // Ensure cache is empty
+        return;
     }
-    console.log(`Loading data for week: ${weekData}`);
-    // Check local cache first (optional, but good for performance)
-    // if (previousSubmissions[weekData]) {
-    //    console.log("Loading from cache for week:", weekData);
-    //    entries = previousSubmissions[weekData].map(e => ({...e, id: Date.now() + Math.random() })); // Assign new IDs if needed
-    //    isSubmitted = true;
-    //    isModified = false;
-    //    render();
-    //    return;
-    // }
-
+    console.log("Fetching all time allocation data...");
     try {
-        const response = await fetch(`/api/GetTimeAllocations?week=${encodeURIComponent(weekData)}`);
+        const response = await fetch(`/api/GetAllTimeAllocations`);
         if (!response.ok) {
-             if (response.status === 404) { // Common if no data exists yet
-                 console.log("No data found for week:", weekData);
-                 entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset to default
-                 isSubmitted = false;
-             } else {
-                 const errorBody = await response.text();
-                 throw new Error(`API Error (${response.status}): ${errorBody}`);
-             }
-        } else {
-            const loadedEntries = await response.json();
-            if (loadedEntries && loadedEntries.length > 0) {
-                entries = loadedEntries.map(entry => ({ 
-                    id: Date.now() + Math.random(), // Generate a unique ID for the UI
-                    projectId: entry.ProjectId, 
-                    percentage: entry.Percentage.toString(), // Ensure it's a string for input
-                    isManuallySet: false // Assume loaded data wasn't manually set in this session
-                }));
-                isSubmitted = true; // Mark as submitted if data was loaded
-                previousSubmissions[weekData] = entries.map(e => ({ projectId: e.projectId, percentage: parseInt(e.percentage) })); // Update cache
-            } else {
-                 entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset to default if empty array returned
-                 isSubmitted = false;
-            }
+            const errorBody = await response.text();
+            throw new Error(`API Error (${response.status}): ${errorBody || response.statusText}`);
         }
-        
-        manuallyEditedIds = new Set(); // Reset manual edits on load
-        isModified = false; // Reset modification state on load
-        render(); // Re-render with loaded or default data
+        allTimesheetDataCache = await response.json(); // Store the { "week": [...] } structure
+        console.log(`Loaded ${Object.keys(allTimesheetDataCache).length} weeks into cache.`);
+        // After loading all data, populate the view for the *current* week
+        populateEntriesFromCache(formatWeekRange(currentWeek));
 
     } catch (err) {
-        console.error('Error loading data:', err);
-        error = `Failed to load timesheet: ${err.message}`;
-        // Decide how to handle load errors, maybe keep existing entries or reset?
-        entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset on error?
-        isSubmitted = false;
-        isModified = false;
-        render(); // Re-render to show the error and reset state
+        console.error("Error loading all timesheet data:", err);
+        error = `Failed to load timesheet data: ${err.message}. Please refresh.`;
+        allTimesheetDataCache = {}; // Clear cache on error
+        resetEntriesToDefault(); // Reset view on error
+        render(); // Show error message
     }
   }
-  // --- END: Authentication and Data Functions ---
+  // --- END: New function ---
+
+  // --- NEW: Function to update UI from cache ---
+  function populateEntriesFromCache(weekKey) {
+    console.log(`Populating entries from cache for week: ${weekKey}`);
+    const cachedEntries = allTimesheetDataCache[weekKey];
+
+    if (cachedEntries && cachedEntries.length > 0) {
+        // Data exists in cache for this week
+        entries = cachedEntries.map(entry => ({
+            id: Date.now() + Math.random(), // Fresh UI ID
+            projectId: entry.ProjectId,     // Match case from API/DB
+            percentage: String(entry.Percentage), // Ensure string
+            isManuallySet: false
+        }));
+        isSubmitted = true;
+        isModified = false;
+    } else {
+        // No data in cache for this week, treat as new/empty
+        resetEntriesToDefault(); // Use the existing reset function
+        isSubmitted = false;
+        isModified = false;
+    }
+    manuallyEditedIds = new Set(); // Always reset manual edits when navigating weeks
+    entryInputModes = {}; // Reset input modes
+    render(); // Render the UI with the populated/reset entries
+  }
+  // --- END: New function ---
 
   // --- NEW: Update Auth UI ---
   function updateAuthUI() {
