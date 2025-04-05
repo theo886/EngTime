@@ -1595,12 +1595,22 @@ document.addEventListener('DOMContentLoaded', function() {
       loginView.classList.add('hidden');
       userView.classList.remove('hidden');
       
-      // Display user name (shortened if it contains '@')
-      let displayName = userInfo.userId; // Fallback to userId
+      // Get base username (before '@')
+      let baseUsername = userInfo.userId; // Fallback to userId
       if (userInfo.userDetails) {
-        displayName = userInfo.userDetails.includes('@') ? userInfo.userDetails.split('@')[0] : userInfo.userDetails;
+        baseUsername = userInfo.userDetails.includes('@') ? userInfo.userDetails.split('@')[0] : userInfo.userDetails;
       }
-      userNameSpan.textContent = displayName;
+      
+      // Format username: U.S.
+      let formattedName = baseUsername; // Default to base username
+      if (baseUsername && baseUsername.length >= 2) {
+          formattedName = baseUsername[0].toUpperCase() + '.' + baseUsername[1].toUpperCase();
+      } else if (baseUsername && baseUsername.length === 1) {
+          // Handle single-character names
+          formattedName = baseUsername[0].toUpperCase();
+      }
+      
+      userNameSpan.textContent = formattedName;
       
     } else {
       // Logged out
