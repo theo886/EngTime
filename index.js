@@ -540,7 +540,7 @@ document.addEventListener('DOMContentLoaded', function() {
       percentageDiv.className = 'col-span-3 sm:col-span-2 md:col-span-1';
       
       const inputContainer = document.createElement('div');
-      inputContainer.className = 'relative w-18 mx-auto';
+      inputContainer.className = 'relative w-[4.5rem] mx-auto';
       
       const input = document.createElement('input');
       input.type = 'number';
