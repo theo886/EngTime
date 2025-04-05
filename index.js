@@ -325,7 +325,16 @@ document.addEventListener('DOMContentLoaded', function() {
              event.stopPropagation(); // Prevent global click listener from closing it immediately
              const content = document.getElementById('user-dropdown-content');
              if (content) {
-                 content.classList.toggle('show');
+                 const isCurrentlyShown = content.classList.contains('show');
+                 if (isCurrentlyShown) {
+                     // Hide it
+                     content.classList.remove('show');
+                     content.style.display = 'none'; // Set display none
+                 } else {
+                     // Show it
+                     content.classList.add('show');
+                     content.style.display = 'block'; // Set display block
+                 }
              }
         });
     }
@@ -1688,7 +1697,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (userView) {
           console.log("updateAuthUI: Hiding user view"); // DEBUG
           userView.classList.add('hidden');
-          // userView.style.display = 'none'; // REMOVE: Rely on CSS class
+          userView.style.display = 'none'; // Re-add direct style manipulation
       } else {
           console.error("updateAuthUI: userView not found!"); // DEBUG
       }
