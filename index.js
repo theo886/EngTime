@@ -1557,10 +1557,18 @@ document.addEventListener('DOMContentLoaded', function() {
     error = ""; // Clear previous errors before saving
 
     try {
+        // --- ADD: Extract user email ---
+        const userEmail = userInfo?.userDetails || 'unknown@example.com'; // Use a fallback just in case
+        
         const response = await fetch('/api/SaveTimeAllocation', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ week: weekData, entries: allocationEntries }) // Send raw entries
+            // --- MODIFIED: Add userEmail to payload ---
+            body: JSON.stringify({ 
+                week: weekData, 
+                userEmail: userEmail, // Added email
+                entries: allocationEntries 
+            })
         });
 
         if (!response.ok) {
