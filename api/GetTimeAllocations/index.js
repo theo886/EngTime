@@ -3,14 +3,16 @@ const sql = require('mssql');
 // Helper function to get user info from header
 function getUserInfo(req) {
     const header = req.headers['x-ms-client-principal'];
-    if (!header) return null;
+    if (!header) {
+        return null;
+    }
     const encoded = Buffer.from(header, 'base64');
     const decoded = encoded.toString('ascii');
     return JSON.parse(decoded);
 }
 
 module.exports = async function (context, req) {
-    context.log('GetTimeAllocations function processing request to fetch ALL user data.');
+    context.log('GetTimeAllocations function processing request.');
 
     const clientPrincipal = getUserInfo(req);
 
@@ -20,6 +22,12 @@ module.exports = async function (context, req) {
     }
 
     const userId = clientPrincipal.userId;
+    const week = req.query.week; // Expecting week as query parameter, e.g., /api/GetTimeAllocations?week=MM/DD/YYYY%20-%20MM/DD/YYYY
+
+    if (!week) {
+        context.res = { status: 400, body: "Missing 'week' query parameter." };
+        return;
+    }
 
     const connectionString = process.env.AZURE_SQL_CONNECTION_STRING;
     if (!connectionString) {
@@ -30,29 +38,16 @@ module.exports = async function (context, req) {
     let pool;
     try {
         pool = await sql.connect(connectionString);
-        // Fetch ALL records for the user, ordering might be useful but not essential for cache
-        // TODO: Replace TimeAllocations and column names (Week, ProjectId, Percentage, UserId) if different
+        // TODO: Replace TimeAllocations with actual table name and column names if different
         const result = await pool.request()
-                               .input('UserId', sql.NVarChar, userId) // TODO: Confirm UserId column name and type
-                               .query('SELECT Week, ProjectId, Percentage FROM TimeAllocations WHERE UserId = @UserId'); // TODO: Replace TimeAllocations and confirm column names
+                               .input('UserId', sql.NVarChar, userId)
+                               .input('Week', sql.NVarChar, week)
+                               .query('SELECT ProjectId, Percentage FROM TimeAllocations WHERE UserId = @UserId AND Week = @Week');
 
-        // Group results by week for easier consumption by the frontend cache
-        const groupedData = {};
-        result.recordset.forEach(row => {
-            const weekKey = row.Week; // Assuming 'Week' column stores the "MM/DD/YYYY - MM/DD/YYYY" string
-            if (!groupedData[weekKey]) {
-                groupedData[weekKey] = [];
-            }
-            groupedData[weekKey].push({
-                ProjectId: row.ProjectId,
-                Percentage: row.Percentage // Keep as number from DB
-            });
-        });
-
+        // Return the found entries or an empty array if none found
         context.res = {
             status: 200,
-            // Send the data grouped by week string
-            body: groupedData
+            body: result.recordset // recordset is an array, empty if no rows found
         };
 
     } catch (err) {
@@ -60,8 +55,11 @@ module.exports = async function (context, req) {
         context.res = { status: 500, body: `Database error: ${err.message}` };
     } finally {
         if (pool) {
-             try { await pool.close(); context.log("SQL Connection closed."); }
-             catch (closeErr) { context.log.error("Error closing SQL connection:", closeErr); }
+             try {
+                await pool.close(); // Use the pool variable defined earlier
+            } catch (closeErr) {
+                 context.log.error("Error closing connection:", closeErr);
+            }
         }
     }
 };
