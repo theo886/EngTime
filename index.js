@@ -451,12 +451,12 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       const entryDiv = document.createElement('div');
-      entryDiv.className = 'grid grid-cols-12 gap-x-2 sm:gap-x-3 items-center min-w-0';
+      entryDiv.className = 'flex items-center gap-3 min-w-0';
       entryDiv.dataset.id = entry.id;
       
       // Project select column
       const selectDiv = document.createElement('div');
-      selectDiv.className = 'col-span-7 md:col-span-9 min-w-0';
+      selectDiv.className = 'flex-1 min-w-0';
       
       const selectContainer = document.createElement('div');
       selectContainer.className = 'relative min-w-0 overflow-visible';
@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Percentage input column
       const percentageDiv = document.createElement('div');
-      percentageDiv.className = 'col-span-3 sm:col-span-2 md:col-span-1';
+      percentageDiv.className = 'shrink-0';
       
       const inputContainer = document.createElement('div');
       inputContainer.className = 'relative w-[4.5rem] mx-auto';
@@ -609,7 +609,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Remove button column
       const removeDiv = document.createElement('div');
-      removeDiv.className = 'col-span-2 sm:col-span-2 md:col-span-2 flex items-center justify-center';
+      removeDiv.className = 'shrink-0 flex items-center justify-center';
       
       if (entries.length > 1) {
         const removeButton = document.createElement('button');
