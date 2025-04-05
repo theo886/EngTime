@@ -1615,14 +1615,13 @@ document.addEventListener('DOMContentLoaded', function() {
         baseUsername = userInfo.userDetails.includes('@') ? userInfo.userDetails.split('@')[0] : userInfo.userDetails;
       }
       
-      // Format username: U.S.
+      // Format username: A.Theodossiou
       let formattedName = baseUsername; // Default to base username
-      if (baseUsername && baseUsername.length >= 2) {
-          formattedName = baseUsername[0].toUpperCase() + '.' + baseUsername[1].toUpperCase();
-      } else if (baseUsername && baseUsername.length === 1) {
-          // Handle single-character names
-          formattedName = baseUsername[0].toUpperCase();
-      }
+      if (baseUsername && baseUsername.length >= 1) {
+          // Capitalize first letter, add period, add rest of the name
+          formattedName = baseUsername[0].toUpperCase() + '.' + baseUsername.substring(1);
+      } 
+      // (No need for specific length check, substring(1) handles short names gracefully)
       
       userNameSpan.textContent = formattedName;
       
