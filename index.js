@@ -1397,11 +1397,9 @@ document.addEventListener('DOMContentLoaded', function() {
             mode: 'index',
             intersect: false,
             callbacks: {
-              // --- REMOVED: Filter callback ---
-              // filter: function(tooltipItem) { ... },
               label: function(context) {
                 const value = context.raw || 0;
-                // --- ADDED: Check for 0 value --- 
+                // --- ADDED: Check for 0 value ---
                 if (Number(value) === 0) {
                     return null; // Return null to hide this line item completely
                 }
