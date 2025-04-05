@@ -1633,6 +1633,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (userInfo) {
       // Logged in
+      console.log("updateAuthUI: User is LOGGED IN"); // DEBUG
       loginView.classList.add('hidden');
       userView.classList.remove('hidden');
       
@@ -1657,9 +1658,24 @@ document.addEventListener('DOMContentLoaded', function() {
       
     } else {
       // Logged out
-      loginView.classList.remove('hidden');
-      userView.classList.add('hidden');
-      userNameSpan.textContent = 'User'; // Reset placeholder
+      console.log("updateAuthUI: User is LOGGED OUT"); // DEBUG
+      if (loginView) {
+          console.log("updateAuthUI: Showing login view"); // DEBUG
+          loginView.classList.remove('hidden');
+      } else {
+          console.error("updateAuthUI: loginView not found!"); // DEBUG
+      }
+      if (userView) {
+          console.log("updateAuthUI: Hiding user view"); // DEBUG
+          userView.classList.add('hidden');
+      } else {
+          console.error("updateAuthUI: userView not found!"); // DEBUG
+      }
+      if (userNameSpan) { // Added check for safety
+          userNameSpan.textContent = 'User'; // Reset placeholder
+      } else {
+          console.error("updateAuthUI: userNameSpan not found!"); // DEBUG
+      }
     }
   }
   // --- END: Update Auth UI ---
