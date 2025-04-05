@@ -1,12 +1,10 @@
 // Weekly Percentage Tracker (Vanilla JavaScript)
 document.addEventListener('DOMContentLoaded', function() {
   // Configuration flags
-  const debugMode = true; // Set to false to disable fake data loading
-  
-  // Access projects and loadFakeDataForTesting from global scope
+
+  // Access projects from global scope
   const projects = window.projectData.projects;
-  const loadFakeDataForTesting = window.loadFakeDataForTesting;
-  
+
   // Access utility functions from global scope
   const { validateEntries, calculateTotal, redistributePercentages, formatWeekRange } = window.utilsFunctions;
 
@@ -19,15 +17,16 @@ document.addEventListener('DOMContentLoaded', function() {
   let isAnyDropdownOpen = false;
   let isPinned = false;
   let error = "";
-  let previousSubmissions = {};
+  let timesheetCache = {}; // <-- RENAMED and initialized empty
   let isSubmitted = false;
   let isModified = false;
   let entryInputModes = {}; // Will store entry.id -> 'percent' or 'hours'
   let userInfo = null; // Store user info
+  let isLoading = true; // Add loading state
   
   // Load fake data for testing if in debug mode
   if (debugMode) {
-    previousSubmissions = loadFakeDataForTesting(currentWeek, formatWeekRange);
+    timesheetCache = loadFakeDataForTesting(currentWeek, formatWeekRange);
   }
 
   // DOM elements
@@ -40,14 +39,47 @@ document.addEventListener('DOMContentLoaded', function() {
   // Render the initial state
   render();
 
-  // --- NEW: Initialize Auth on Load ---
-  (async () => {
-    userInfo = await getUserInfoFromAuthEndpoint();
-    console.log("User info on load:", userInfo);
-    updateAuthUI(); // Update UI based on login status
-    loadData(formatWeekRange(currentWeek)); // Load data for the initial week after getting user info
-  })();
-  // --- END: Initialize Auth on Load ---
+  // --- Initialize Auth and Load Initial Data ---
+  async function initializeApp() {
+    isLoading = true; // Start in loading state
+    render(); // Show initial loading message if needed
+    try {
+        const response = await fetch('/.auth/me');
+        if (response.ok) {
+            const payload = await response.json();
+            if (payload.clientPrincipal) {
+                userInfo = payload.clientPrincipal; // Set the global userInfo variable
+                console.log("User authenticated:", userInfo);
+                updateAuthUI();
+                await loadAllDataIntoCache(); // <<< CALL CACHE LOAD HERE
+                // loadAllDataIntoCache handles setting isLoading = false and the final render
+            } else {
+                // Not logged in, but /.auth/me succeeded
+                console.log("User not logged in.");
+                userInfo = null;
+                updateAuthUI();
+                isLoading = false; // Stop loading
+                populateUIFromCacheOrDefaults(formatWeekRange(currentWeek)); // Show default view (logged out)
+            }
+        } else {
+            // /.auth/me failed (e.g., 401, 500)
+            console.log("/.auth/me request failed.");
+            userInfo = null;
+            updateAuthUI();
+            isLoading = false; // Stop loading
+            populateUIFromCacheOrDefaults(formatWeekRange(currentWeek)); // Show default view (logged out)
+        }
+    } catch (error) {
+        console.error("Error during initialization:", error);
+        userInfo = null;
+        updateAuthUI();
+        isLoading = false; // Stop loading
+        error = "Error initializing application. Please try refreshing.";
+        populateUIFromCacheOrDefaults(formatWeekRange(currentWeek)); // Show default view with error
+    }
+  }
+  initializeApp(); // Call the initialization function
+  // --- END: Initialize Auth and Load Initial Data ---
 
   // Add a global click event listener to close dropdowns when clicking outside
   document.addEventListener('click', function(event) {
@@ -81,6 +113,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const monday = new Date(today.setDate(diff));
     monday.setHours(0, 0, 0, 0);
     return monday;
+  }
+
+  // Helper to reset entries to a default state
+  function resetEntriesToDefault() {
+      entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }];
+      // Initialize input modes for the default entry
+      entryInputModes = {}; 
+      entries.forEach(e => { entryInputModes[e.id] = 'percent' });
+      // Reset other related states if necessary
+      manuallyEditedIds = new Set();
+      isModified = false; 
+      // isSubmitted might need to be handled based on context where this is called
   }
 
   function createInitialHTML() {
@@ -211,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
           </div>
           
-          <div class="p-6">
+          <div id="main-content" class="p-6">
             <div class="flex justify-center items-center gap-3 mb-3">
               <button id="prev-week-button" class="text-slate-600 hover:bg-slate-100 p-2 rounded">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -324,6 +368,35 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function render() {
+    // --- NEW: Loading State Handling ---
+    const mainContent = document.getElementById('main-content'); 
+    if (isLoading && mainContent) {
+        mainContent.innerHTML = '<p class="text-center p-10">Loading user data...</p>';
+        mainContent.classList.remove('hidden'); // Ensure visible if previously hidden
+        // We might want to hide other parts of the UI here if needed
+        // Find the parent container of mainContent if it exists
+        const container = mainContent.closest('.max-w-\[650px\]'); // Find the overall container
+        if (container) {
+            // Optionally hide elements outside mainContent while loading
+            // Example: hide footer or header elements if they are separate
+        }
+        return; // Stop further rendering while loading
+    } else if (!isLoading && mainContent && mainContent.firstChild?.tagName === 'P' && mainContent.firstChild?.textContent.includes('Loading user data...')) {
+        // If we were loading but now isLoading is false, and the loading message is still there,
+        // we need to restore the original content structure before proceeding with the rest of the render.
+        // We need to find the container where createInitialHTML was originally placed.
+        const container = document.getElementById('weekly-tracker') || document.body;
+        // Re-create the initial HTML structure. This is inefficient but necessary with this approach.
+        // A better approach might involve keeping the main structure and only replacing/showing/hiding the content area.
+        container.innerHTML = createInitialHTML(); 
+        initializeEventListeners(); // Re-attach listeners because we rebuilt the DOM
+        // Now that the structure is restored, we can continue with the rest of the render logic below.
+        // Re-get mainContent as it was just recreated
+        // mainContent = document.getElementById('main-content'); 
+        // The rest of render() will now populate this restored structure.
+    }
+    // --- END: Loading State Handling ---
+
     // Update week display
     document.getElementById('week-display').textContent = `Week of ${formatWeekRange(currentWeek)}`;
     
@@ -587,107 +660,61 @@ document.addEventListener('DOMContentLoaded', function() {
     const prevWeek = new Date(currentWeek);
     prevWeek.setDate(prevWeek.getDate() - 7);
     currentWeek = prevWeek;
-    
-    // Reset input modes
-    entryInputModes = {};
-    
-    // If pinned, keep the current entries (matching the behavior of goToNextWeek)
+    const weekKey = formatWeekRange(currentWeek);
+
     if (isPinned) {
-      // Just clone the current entries with new IDs
-      entries = entries.map(entry => {
-        const newId = Date.now() + Math.random(); // Generate new IDs
-        entryInputModes[newId] = 'percent'; // Set default input mode
-        return {
-          ...entry,
-          id: newId
-        };
-      });
-      isSubmitted = false;
-      isModified = false;
-    } else {
-      // Check if we have stored entries for the previous week
-      const prevWeekKey = formatWeekRange(prevWeek);
-      const previousWeekEntries = previousSubmissions[prevWeekKey];
-      
-      // Check if the previous week was submitted
-      isSubmitted = !!previousWeekEntries;
-      isModified = false;
-      
-      // If we have previous entries for this week, use them
-      if (previousWeekEntries && previousWeekEntries.length > 0) {
-        entries = previousWeekEntries.map(entry => {
-          const newId = Date.now() + Math.random(); // Generate new IDs
-          entryInputModes[newId] = 'percent'; // Set default input mode
-          return {
-            ...entry,
-            id: newId
-          };
-        });
-      } else {
-        // Otherwise start with a blank slate
-        const newId = Date.now();
-        entries = [{ id: newId, projectId: "", percentage: "100", isManuallySet: false }];
-        entryInputModes[newId] = 'percent'; // Set default input mode
+        // Keep current entries structure, generate new IDs etc.
+        // TODO: Review this pin logic carefully - might need adjustment
+        entries = entries.map(entry => ({ 
+             id: Date.now() + Math.random(), 
+             projectId: entry.projectId, 
+             percentage: entry.percentage, 
+             isManuallySet: false // Assume unpinned data isn't manually set initially
+        }));
         manuallyEditedIds = new Set();
-      }
+        // Check if the target week HAS data in cache to determine initial submitted state
+        isSubmitted = timesheetCache[weekKey] && timesheetCache[weekKey].length > 0; 
+        isModified = true; // Since we carried over potentially unsaved data
+        // We still need to initialize input modes for the new IDs
+        entryInputModes = {};
+        entries.forEach(e => { entryInputModes[e.id] = 'percent' });
+        render(); // Render the pinned data in the new week
+    } else {
+        // Populate UI from cache or defaults for the new week
+        populateUIFromCacheOrDefaults(weekKey); // <<< Use this function
+        // render() is called inside populateUIFromCacheOrDefaults
     }
-    
-    render();
-    loadData(formatWeekRange(currentWeek)); // Load data for the new week
   }
 
   function goToNextWeek() {
     const nextWeek = new Date(currentWeek);
     nextWeek.setDate(nextWeek.getDate() + 7);
     currentWeek = nextWeek;
-    
-    // Reset input modes
-    entryInputModes = {};
-    
-    // If pinned, keep the current entries
-    if (isPinned) {
-      // Just clone the current entries with new IDs
-      entries = entries.map(entry => {
-        const newId = Date.now() + Math.random(); // Generate new IDs
-        entryInputModes[newId] = 'percent'; // Set default input mode
-        return {
-          ...entry,
-          id: newId
-        };
-      });
-      isSubmitted = false;
-      isModified = false;
-    } else {
-      // Get the next week's entries if they exist
-      const nextWeekKey = formatWeekRange(nextWeek);
-      const previousWeekEntries = previousSubmissions[nextWeekKey];
-      
-      // Check if the next week was submitted
-      isSubmitted = !!previousWeekEntries;
-      isModified = false;
-      
-      // If we have previous entries for the next week, use them
-      if (previousWeekEntries && previousWeekEntries.length > 0) {
-        entries = previousWeekEntries.map(entry => {
-          const newId = Date.now() + Math.random(); // Generate new IDs
-          entryInputModes[newId] = 'percent'; // Set default input mode
-          return {
-            ...entry,
-            id: newId
-          };
-        });
-      } else {
-        // Otherwise start with a blank slate
-        const newId = Date.now();
-        entries = [{ id: newId, projectId: "", percentage: "100", isManuallySet: false }];
-        entryInputModes[newId] = 'percent'; // Set default input mode
-        manuallyEditedIds = new Set();
-      }
+    const weekKey = formatWeekRange(currentWeek);
+
+     if (isPinned) {
+        // Keep current entries structure, generate new IDs etc.
+        // TODO: Review this pin logic carefully - might need adjustment
+         entries = entries.map(entry => ({ 
+             id: Date.now() + Math.random(), 
+             projectId: entry.projectId, 
+             percentage: entry.percentage, 
+             isManuallySet: false // Assume unpinned data isn't manually set initially
+         }));
+         manuallyEditedIds = new Set();
+         // Check if the target week HAS data in cache to determine initial submitted state
+         isSubmitted = timesheetCache[weekKey] && timesheetCache[weekKey].length > 0; 
+         isModified = true; // Since we carried over potentially unsaved data
+         // We still need to initialize input modes for the new IDs
+         entryInputModes = {};
+         entries.forEach(e => { entryInputModes[e.id] = 'percent' });
+         render(); // Render the pinned data in the new week
+     } else {
+         // Populate UI from cache or defaults for the new week
+        populateUIFromCacheOrDefaults(weekKey); // <<< Use this function
+        // render() is called inside populateUIFromCacheOrDefaults
     }
-    
-    render();
-    loadData(formatWeekRange(currentWeek)); // Load data for the new week
-  }
+}
 
   function addEntry() {
     // If already submitted, mark as modified
@@ -883,11 +910,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function isDuplicateProject(projectId) {
-    return entries.filter(entry => entry.projectId === projectId).length > 1;
-  }
-
-  function submitTimesheet() {
-    return false;
+    return entries.filter(e => e.projectId === projectId).length > 1;
   }
 
   function updateSubmitButton() {
@@ -1005,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Show warning if using sample data
     const noDataMessage = document.getElementById('no-data-message');
-    if (Object.keys(previousSubmissions).length === 0) {
+    if (Object.keys(timesheetCache).length === 0) {
       noDataMessage.classList.remove('hidden');
     } else {
       noDataMessage.classList.add('hidden');
@@ -1021,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Process project data for the charts
   function processProjectData() {
     // Gather all submissions
-    const submissionWeeks = Object.keys(previousSubmissions);
+    const submissionWeeks = Object.keys(timesheetCache);
     console.log("Found submission weeks:", submissionWeeks);
     
     // Time series data structure
@@ -1062,7 +1085,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // First pass: track when each project first appears
       sortedWeeks.forEach((week, weekIndex) => {
-        const weekEntries = previousSubmissions[week];
+        const weekEntries = timesheetCache[week];
         
         weekEntries.forEach(entry => {
           if (!entry.projectId) return;
@@ -1078,7 +1101,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Process each submitted week in chronological order
       sortedWeeks.forEach((week, weekIndex) => {
-        const weekEntries = previousSubmissions[week];
+        const weekEntries = timesheetCache[week];
         // Get the start date from the week string and format it
         const weekStartDate = getWeekStartDate(week);
         timeData.labels.push(formatWeekStart(weekStartDate));
@@ -1515,9 +1538,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const result = await response.json();
         console.log('Save successful:', result);
+
+        // ---> UPDATE CACHE ON SUCCESS <--- 
+        // Format the saved data to match the structure expected by the cache/GetTimeAllocations
+        timesheetCache[weekData] = allocationEntries.map(e => ({
+             ProjectId: e.projectId, // Match cache structure (usually same as DB column)
+             Percentage: e.percentage // Keep as number as returned by API & expected by populate function
+         }));
+         console.log('Cache updated for week:', weekData);
+        // ---> END CACHE UPDATE <--- 
+
         isModified = false; // Reset modification state after successful save
         isSubmitted = true; // Mark as submitted for the current view
-        previousSubmissions[weekData] = allocationEntries; // Update local cache
         render(); // Re-render to show confirmation/updated state
 
     } catch (err) {
@@ -1527,70 +1559,67 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  async function loadData(weekData) {
-     if (!userInfo) {
-        console.log("User not logged in, skipping data load.");
-        // Optionally clear entries or show a message if needed when logged out
-        entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset to default
-        manuallyEditedIds = new Set();
-        isSubmitted = false;
-        isModified = false;
-        render();
-        return; 
+  async function loadAllDataIntoCache() {
+    if (!userInfo) {
+        console.log("User not logged in. Cannot fetch data.");
+        isLoading = false; // Stop loading state
+        timesheetCache = {}; // Ensure cache is empty
+        populateUIFromCacheOrDefaults(formatWeekRange(currentWeek)); // Show default view
+        return;
     }
-    console.log(`Loading data for week: ${weekData}`);
-    // Check local cache first (optional, but good for performance)
-    // if (previousSubmissions[weekData]) {
-    //    console.log("Loading from cache for week:", weekData);
-    //    entries = previousSubmissions[weekData].map(e => ({...e, id: Date.now() + Math.random() })); // Assign new IDs if needed
-    //    isSubmitted = true;
-    //    isModified = false;
-    //    render();
-    //    return;
-    // }
+    console.log("Fetching all timesheet data for user:", userInfo.userId);
+    isLoading = true;
+    error = ""; // Clear previous errors
+    render(); // Show loading state
 
     try {
-        const response = await fetch(`/api/GetTimeAllocations?week=${encodeURIComponent(weekData)}`);
+        const response = await fetch(`/api/GetTimeAllocations`); // No week parameter needed
         if (!response.ok) {
-             if (response.status === 404) { // Common if no data exists yet
-                 console.log("No data found for week:", weekData);
-                 entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset to default
-                 isSubmitted = false;
-             } else {
-                 const errorBody = await response.text();
-                 throw new Error(`API Error (${response.status}): ${errorBody}`);
-             }
-        } else {
-            const loadedEntries = await response.json();
-            if (loadedEntries && loadedEntries.length > 0) {
-                entries = loadedEntries.map(entry => ({ 
-                    id: Date.now() + Math.random(), // Generate a unique ID for the UI
-                    projectId: entry.ProjectId, 
-                    percentage: entry.Percentage.toString(), // Ensure it's a string for input
-                    isManuallySet: false // Assume loaded data wasn't manually set in this session
-                }));
-                isSubmitted = true; // Mark as submitted if data was loaded
-                previousSubmissions[weekData] = entries.map(e => ({ projectId: e.projectId, percentage: parseInt(e.percentage) })); // Update cache
-            } else {
-                 entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset to default if empty array returned
-                 isSubmitted = false;
-            }
+            const errorBody = await response.text();
+            throw new Error(`API Error (${response.status}): ${errorBody}`);
         }
-        
-        manuallyEditedIds = new Set(); // Reset manual edits on load
-        isModified = false; // Reset modification state on load
-        render(); // Re-render with loaded or default data
+        const allData = await response.json();
+        timesheetCache = allData || {}; // Store the fetched data (grouped by week)
+        console.log("Timesheet cache populated:", Object.keys(timesheetCache).length, "weeks found.");
 
     } catch (err) {
-        console.error('Error loading data:', err);
-        error = `Failed to load timesheet: ${err.message}`;
-        // Decide how to handle load errors, maybe keep existing entries or reset?
-        entries = [{ id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }]; // Reset on error?
-        isSubmitted = false;
-        isModified = false;
-        render(); // Re-render to show the error and reset state
+        console.error('Error loading all data:', err);
+        error = `Failed to load timesheet data: ${err.message}`;
+        timesheetCache = {}; // Clear cache on error
+    } finally {
+        isLoading = false;
+        // Now populate the UI for the current week from the (potentially updated) cache
+        populateUIFromCacheOrDefaults(formatWeekRange(currentWeek));
+         // Re-render is called by populateUIFromCacheOrDefaults
     }
-  }
+}
+
+function populateUIFromCacheOrDefaults(weekKey) {
+     console.log("Populating UI for week:", weekKey);
+     const cachedEntries = timesheetCache[weekKey];
+
+     if (cachedEntries && cachedEntries.length > 0) {
+         console.log("Using cached data.");
+         entries = cachedEntries.map(entry => ({
+             id: Date.now() + Math.random(), // Generate unique UI ID
+             projectId: entry.ProjectId,
+             percentage: entry.Percentage.toString(), // Ensure string for UI consistency
+             isManuallySet: false
+         }));
+         isSubmitted = true; // Data exists for this week
+     } else {
+         console.log("Using default entries for week:", weekKey);
+         resetEntriesToDefault(); // Use your reset function
+         isSubmitted = false; // No submitted data for this week
+     }
+     manuallyEditedIds = new Set(); // Reset manual edits when changing week/loading
+     isModified = false;        // Reset modification state
+     error = "";                // Clear week-specific load errors
+     entryInputModes = {};     // Reset input modes
+     entries.forEach(e => { if(!entryInputModes[e.id]) entryInputModes[e.id] = 'percent' }); // Initialize modes
+     render(); // Render the UI with the data for the current week
+}
+
   // --- END: Authentication and Data Functions ---
 
   // --- NEW: Update Auth UI ---

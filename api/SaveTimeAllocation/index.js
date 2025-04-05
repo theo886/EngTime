@@ -46,7 +46,7 @@ module.exports = async function (context, req) {
             const deleteRequest = transaction.request();
             await deleteRequest.input('UserId', sql.NVarChar, userId)
                                .input('Week', sql.NVarChar, week) // Ensure your DB column matches this type/length
-                               .query('DELETE FROM TimeAllocations WHERE UserId = @UserId AND Week = @Week'); // TODO: Replace TimeAllocations with actual table name
+                               .query('DELETE FROM TimeAllocations WHERE UserId = @UserId AND Week = @Week'); // TODO: Replace TimeAllocations and confirm UserId/Week column names
 
             // Insert new entries
             for (const entry of entries) {
@@ -56,7 +56,7 @@ module.exports = async function (context, req) {
                                        .input('Week', sql.NVarChar, week)
                                        .input('ProjectId', sql.NVarChar, entry.projectId) // Adjust type/length if needed
                                        .input('Percentage', sql.Int, parseInt(entry.percentage)) // Ensure percentage is stored as int
-                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, Percentage) VALUES (@UserId, @Week, @ProjectId, @Percentage)'); // TODO: Replace TimeAllocations with actual table name
+                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, Percentage) VALUES (@UserId, @Week, @ProjectId, @Percentage)'); // TODO: Replace TimeAllocations and confirm all column names
                 }
             }
 
