@@ -994,7 +994,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <p class="text-sm mt-1">Submit some timesheets to see real data in these reports. Currently showing projected/sample data.</p>
             </div>
             
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 gap-6">
               <div class="bg-white p-4 rounded-lg shadow">
                 <div class="h-96">
                   <canvas id="time-series-chart"></canvas>
@@ -1444,21 +1444,27 @@ document.addEventListener('DOMContentLoaded', function() {
               label: function(context) {
                 const label = context.label || '';
                 const value = context.raw || 0; // This is the average weekly percentage
-                const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
-                const percentage = Math.round((value / total) * 100);
                 
                 // Calculate weekly hours based on percentage of a 40-hour week
                 const weeklyHours = (value / 100) * 40;
                 
                 // For total hours, multiply by the number of weeks
-                const numWeeks = totalWeeks || 1;
+                const numWeeks = totalWeeks || 1; // Use the passed totalWeeks
                 const totalHours = weeklyHours * numWeeks;
                 
+                // Create the first line (Project: Percentage%)
+                const line1 = `${label}: ${value}%`;
+                
+                // Create the second line based on number of weeks
+                let line2 = '';
                 if (totalWeeks > 1) {
-                  return `${label}: ${value}% (${weeklyHours.toFixed(1)} hrs/week × ${numWeeks} weeks = ${totalHours.toFixed(1)} total hrs)`;
+                  line2 = `(${weeklyHours.toFixed(1)} hrs/week × ${numWeeks} weeks = ${totalHours.toFixed(1)} total hrs)`;
                 } else {
-                  return `${label}: ${value}% (${weeklyHours.toFixed(1)} hrs/week)`;
+                  line2 = `(${weeklyHours.toFixed(1)} hrs/week)`;
                 }
+                
+                // Return as an array of strings for multi-line tooltip
+                return [line1, line2];
               }
             }
           },
