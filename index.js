@@ -24,11 +24,6 @@ document.addEventListener('DOMContentLoaded', function() {
   let userInfo = null; // Store user info
   let isLoading = true; // Add loading state
   
-  // Load fake data for testing if in debug mode
-  if (debugMode) {
-    timesheetCache = loadFakeDataForTesting(currentWeek, formatWeekRange);
-  }
-
   // DOM elements
   const container = document.getElementById('weekly-tracker') || document.body;
   container.innerHTML = createInitialHTML();
