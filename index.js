@@ -336,6 +336,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }));
       }
     });
+
+    // Dashboard link navigation
+    const dashboardLink = document.getElementById('dashboard-link');
+    if (dashboardLink) {
+        dashboardLink.addEventListener('click', (event) => {
+            event.preventDefault(); // Prevent default anchor behavior
+            showReportsPage(); // Show the reports/dashboard view
+            // Close the dropdown menu
+            const dropdownContent = document.getElementById('user-dropdown-content');
+            if (dropdownContent) {
+                dropdownContent.classList.remove('show');
+            }
+        });
+    }
   }
 
   function render() {
