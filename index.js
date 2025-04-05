@@ -46,16 +46,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Add a global click event listener to close dropdowns when clicking outside
   document.addEventListener('click', function(event) {
-    // If no dropdown is open, do nothing
-    if (!isAnyDropdownOpen) return;
-    
-    // Check if the click target is inside a dropdown or a select trigger
-    const dropdownContainer = event.target.closest('[data-id]');
-    
-    // If clicked outside dropdowns, close all dropdowns
-    if (!dropdownContainer) {
-      closeAllDropdowns();
+    // --- Handle Project Dropdowns --- 
+    // (Keep existing logic for project dropdowns, maybe refactor slightly)
+    const clickedProjectDropdownTrigger = event.target.closest('.relative[data-id] > div:first-child'); // More specific trigger selector
+    const clickedInsideProjectDropdown = event.target.closest('[data-dropdown]');
+    const isClickInsideAnyProjectDropdown = clickedProjectDropdownTrigger || clickedInsideProjectDropdown;
+
+    if (isAnyDropdownOpen && !isClickInsideAnyProjectDropdown) {
+      // If a project dropdown is open and click is outside, close project dropdowns
+      closeAllDropdowns(); // closeAllDropdowns should handle project dropdowns
     }
+    // --- End Handle Project Dropdowns ---
+
+    // --- Handle User Dropdown --- 
+    const userDropdownButton = document.getElementById('user-dropdown-btn');
+    const userDropdownContent = document.getElementById('user-dropdown-content');
+
+    // Check if the user dropdown content exists and is currently shown
+    if (userDropdownContent && userDropdownContent.classList.contains('show')) {
+      // Check if the click was outside the button AND outside the dropdown content
+      const isClickInsideUserDropdown = userDropdownButton?.contains(event.target) || userDropdownContent.contains(event.target);
+      
+      if (!isClickInsideUserDropdown) {
+          console.log("Global click: Hiding user dropdown"); // DEBUG
+          userDropdownContent.classList.remove('show');
+          userDropdownContent.style.display = 'none'; // Also force style for consistency
+      }
+    }
+    // --- End Handle User Dropdown ---
   });
   
   // Function to close all dropdowns
