@@ -558,10 +558,10 @@ document.addEventListener('DOMContentLoaded', function() {
         input.value = Math.round((parseFloat(entry.percentage) / 100) * 40 * 10) / 10;
       }
       
-      // Determine text color based on manual edit status
-      const textColorClass = manuallyEditedIds.has(entry.id) ? 'text-black' : 'text-slate-700';
+      // Determine background color based on manual edit status
+      const bgColorClass = manuallyEditedIds.has(entry.id) ? 'bg-white' : 'bg-slate-50';
       
-      input.className = `w-full px-2 py-2 border rounded-md text-center unit-input ${textColorClass}`;
+      input.className = `w-full px-2 py-2 border rounded-md text-center unit-input ${bgColorClass}`;
       input.addEventListener('change', function(e) {
         const newValue = e.target.value;
         
