@@ -195,7 +195,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <!-- Logged Out View -->
                 <div id="login-view">
                   <button id="login-button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                      Login with Microsoft
+                      Login
                   </button>
                 </div>
                 <!-- Logged In View (User Dropdown) -->
@@ -1644,11 +1644,14 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Format username: A.Theodossiou
       let formattedName = baseUsername; // Default to base username
-      if (baseUsername && baseUsername.length >= 1) {
-          // Capitalize first letter, add period, add rest of the name
-          formattedName = baseUsername[0].toUpperCase() + '.' + baseUsername.substring(1);
+      if (baseUsername && baseUsername.length >= 2) {
+          // Capitalize first, add period, capitalize second, add rest
+          formattedName = baseUsername[0].toUpperCase() + '.' + baseUsername[1].toUpperCase() + baseUsername.substring(2);
+      } else if (baseUsername && baseUsername.length === 1) {
+          // Handle single-character names: just capitalize
+          formattedName = baseUsername[0].toUpperCase();
       } 
-      // (No need for specific length check, substring(1) handles short names gracefully)
+      // If baseUsername is empty, formattedName remains empty
       
       userNameSpan.textContent = formattedName;
       
