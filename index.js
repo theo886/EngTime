@@ -1594,8 +1594,14 @@ document.addEventListener('DOMContentLoaded', function() {
       // Logged in
       loginView.classList.add('hidden');
       userView.classList.remove('hidden');
-      // Use userDetails if available (common with AAD), fallback to userId
-      userNameSpan.textContent = userInfo.userDetails || userInfo.userId;
+      
+      // Display user name (shortened if it contains '@')
+      let displayName = userInfo.userId; // Fallback to userId
+      if (userInfo.userDetails) {
+        displayName = userInfo.userDetails.includes('@') ? userInfo.userDetails.split('@')[0] : userInfo.userDetails;
+      }
+      userNameSpan.textContent = displayName;
+      
     } else {
       // Logged out
       loginView.classList.remove('hidden');
