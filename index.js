@@ -65,6 +65,20 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     isAnyDropdownOpen = false;
     document.getElementById('add-project-button').disabled = false;
+    resetEntriesToDefault();
+  }
+
+  // --- NEW: Function to reset entries to default state ---
+  function resetEntriesToDefault() {
+      const newId = Date.now();
+      entries = [{ id: newId, projectId: "", percentage: "100", isManuallySet: false }];
+      // Reset related state
+      manuallyEditedIds = new Set();
+      entryInputModes = { [newId]: 'percent' }; // Set default mode for the new entry
+      isSubmitted = false;
+      isModified = false;
+      error = ""; // Clear any previous errors
+      console.log("Entries reset to default.");
   }
 
   // Helper Functions
