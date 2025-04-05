@@ -70,7 +70,6 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!isClickInsideUserDropdown) {
           console.log("Global click: Hiding user dropdown"); // DEBUG
           userDropdownContent.classList.remove('show');
-          userDropdownContent.style.display = 'none'; // Also force style for consistency
       }
     }
     // --- End Handle User Dropdown ---
@@ -1653,9 +1652,9 @@ document.addEventListener('DOMContentLoaded', function() {
       // Logged in
       console.log("updateAuthUI: User is LOGGED IN"); // DEBUG
       loginView.classList.add('hidden');
-      loginView.style.display = 'none'; // Force hide
+      loginView.style.display = 'none'; // Keep for login view
       userView.classList.remove('hidden');
-      userView.style.display = ''; // Force show (reset to default display)
+      // userView.style.display = ''; // REMOVE: Rely on CSS class
       
       // Get base username (before '@')
       let baseUsername = userInfo.userId; // Fallback to userId
@@ -1682,14 +1681,14 @@ document.addEventListener('DOMContentLoaded', function() {
       if (loginView) {
           console.log("updateAuthUI: Showing login view"); // DEBUG
           loginView.classList.remove('hidden');
-          loginView.style.display = ''; // Force show
+          loginView.style.display = ''; // Keep for login view
       } else {
           console.error("updateAuthUI: loginView not found!"); // DEBUG
       }
       if (userView) {
           console.log("updateAuthUI: Hiding user view"); // DEBUG
           userView.classList.add('hidden');
-          userView.style.display = 'none'; // Force hide
+          // userView.style.display = 'none'; // REMOVE: Rely on CSS class
       } else {
           console.error("updateAuthUI: userView not found!"); // DEBUG
       }
