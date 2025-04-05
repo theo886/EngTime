@@ -1397,6 +1397,11 @@ document.addEventListener('DOMContentLoaded', function() {
             mode: 'index',
             intersect: false,
             callbacks: {
+              // --- ADDED: Filter callback to exclude 0% entries ---
+              filter: function(tooltipItem) {
+                // tooltipItem.raw contains the actual data value (percentage)
+                return tooltipItem.raw !== 0;
+              },
               label: function(context) {
                 const label = context.dataset.label || '';
                 const value = context.raw || 0;
