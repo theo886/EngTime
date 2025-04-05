@@ -1397,14 +1397,16 @@ document.addEventListener('DOMContentLoaded', function() {
             mode: 'index',
             intersect: false,
             callbacks: {
-              // --- ADDED: Filter callback to exclude 0% entries ---
-              filter: function(tooltipItem) {
-                // tooltipItem.raw contains the actual data value (percentage)
-                return tooltipItem.raw !== 0;
-              },
+              // --- REMOVED: Filter callback ---
+              // filter: function(tooltipItem) { ... },
               label: function(context) {
-                const label = context.dataset.label || '';
                 const value = context.raw || 0;
+                // --- ADDED: Check for 0 value --- 
+                if (Number(value) === 0) {
+                    return null; // Return null to hide this line item completely
+                }
+                // --- End Add ---
+                const label = context.dataset.label || '';
                 // Convert percentage to hours
                 const hours = (value / 100) * 40;
                 return `${label}: ${value}% (${hours.toFixed(1)} hours)`;
