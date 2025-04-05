@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <!-- Authentication Section -->
               <div id="auth-section">
                 <!-- Logged Out View -->
-                <div id="login-view">
+                <div id="login-view" class="hidden">
                   <button id="login-button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
                       Login
                   </button>
@@ -1635,7 +1635,9 @@ document.addEventListener('DOMContentLoaded', function() {
       // Logged in
       console.log("updateAuthUI: User is LOGGED IN"); // DEBUG
       loginView.classList.add('hidden');
+      loginView.style.display = 'none'; // Force hide
       userView.classList.remove('hidden');
+      userView.style.display = ''; // Force show (reset to default display)
       
       // Get base username (before '@')
       let baseUsername = userInfo.userId; // Fallback to userId
@@ -1662,12 +1664,14 @@ document.addEventListener('DOMContentLoaded', function() {
       if (loginView) {
           console.log("updateAuthUI: Showing login view"); // DEBUG
           loginView.classList.remove('hidden');
+          loginView.style.display = ''; // Force show
       } else {
           console.error("updateAuthUI: loginView not found!"); // DEBUG
       }
       if (userView) {
           console.log("updateAuthUI: Hiding user view"); // DEBUG
           userView.classList.add('hidden');
+          userView.style.display = 'none'; // Force hide
       } else {
           console.error("updateAuthUI: userView not found!"); // DEBUG
       }
