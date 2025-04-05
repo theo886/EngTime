@@ -329,11 +329,9 @@ document.addEventListener('DOMContentLoaded', function() {
                  if (isCurrentlyShown) {
                      // Hide it
                      content.classList.remove('show');
-                     content.style.display = 'none'; // Set display none
                  } else {
                      // Show it
                      content.classList.add('show');
-                     content.style.display = 'block'; // Set display block
                  }
              }
         });
