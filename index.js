@@ -1392,6 +1392,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           },
           tooltip: {
+            // --- ADDED: Specify events to prevent click persistence ---
+            events: ['mousemove', 'mouseout', 'touchstart', 'touchmove'], 
             mode: 'index',
             intersect: false,
             callbacks: {
@@ -1403,10 +1405,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 return `${label}: ${value}% (${hours.toFixed(1)} hours)`;
               }
             },
-            padding: 10,
-            bodySpacing: 5,
-            cornerRadius: 6,
-            titleFont: { weight: 'bold', size: 14 }
+            padding: 6,
+            bodySpacing: 4,
+            cornerRadius: 4,
+            titleFont: { weight: 'bold', size: 13 }
           },
           title: {
             display: true,
