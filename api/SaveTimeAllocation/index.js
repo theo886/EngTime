@@ -29,7 +29,8 @@ module.exports = async function (context, req) {
         return;
     }
 
-    const connectionString = process.env.AZURE_SQL_CONNECTION_STRING;
+    // Read the connection string injected by the SWA Database Connection feature
+    const connectionString = process.env.AZURE_SQL_CONNECTION_STRING_SqlDb; // Note the suffix matching the connection name
     if (!connectionString) {
         context.res = { status: 500, body: "Database connection string is not configured." };
         return;

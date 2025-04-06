@@ -20,7 +20,7 @@ module.exports = async function (context, req) {
     }
 
     const userId = clientPrincipal.userId;
-    const connectionString = process.env.AZURE_SQL_CONNECTION_STRING;
+    const connectionString = process.env.AZURE_SQL_CONNECTION_STRING_SqlDb;
 
     if (!connectionString) {
         context.res = { status: 500, body: "Database connection string is not configured." };
