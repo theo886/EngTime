@@ -2,7 +2,8 @@
   "connections": [
     {
       "name": "SqlDb",
-      "connectionStringSettingName": "AZURE_SQL_CONNECTION_STRING_SqlDb"
+      "connectionStringSettingName": "AZURE_SQL_CONNECTION_STRING_SqlDb",
+      "databaseType": "mssql"
     }
   ]
 }
