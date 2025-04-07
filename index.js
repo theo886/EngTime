@@ -1530,12 +1530,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const weeklyTrackerContainer = document.getElementById('weekly-tracker'); // Get main content div
     const loadingIndicator = document.getElementById('loading-indicator');
 
+    // --- Make container visible FIRST ---
+    weeklyTrackerContainer?.classList.remove('hidden');
+
     try {
-        // --- Show main container FIRST ---
-        weeklyTrackerContainer?.classList.remove('hidden'); 
-        
-        // --- Then show skeleton loader ---
-        console.log('>>> Showing loading indicator');
+        // --- Show skeleton loader ---
         loadingIndicator?.classList.remove('hidden');
 
         // Use the existing function to get user info
@@ -1545,13 +1544,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (userInfo) {
             updateAuthUI(); // Update login/logout UI (handles showing user view)
             await loadAllDataIntoCache(); // <<< CALL NEW FUNCTION HERE
-            // weeklyTrackerContainer?.classList.remove('hidden'); // REMOVED from here
+            // weeklyTrackerContainer?.classList.remove('hidden'); // REMOVED: Already visible
         } else {
             updateAuthUI(); // Update UI to show login view
             resetEntriesToDefault(); // Reset the view to default when logged out
             render(); // Re-render to show the cleared state
-            // Ensure the container is visible so the login button can be shown by updateAuthUI
-            // weeklyTrackerContainer?.classList.remove('hidden'); // REMOVED from here
+            // weeklyTrackerContainer?.classList.remove('hidden'); // REMOVED: Already visible
         }
     } catch (error) {
         console.error("Error checking auth status:", error);
@@ -1559,11 +1557,10 @@ document.addEventListener('DOMContentLoaded', function() {
         resetEntriesToDefault(); // Reset the view on error too
         render(); // Re-render to show the cleared state
         // Ensure the container is visible on error too
-        // weeklyTrackerContainer?.classList.remove('hidden'); // REMOVED from here
+        // weeklyTrackerContainer?.classList.remove('hidden'); // REMOVED: Already visible
     } finally {
-        // --- Hide loader after everything finishes (success or error) ---
-        console.log('>>> Hiding loading indicator');
-        document.getElementById('loading-indicator')?.classList.add('hidden');
+        // --- Hide loader after everything ---
+        loadingIndicator?.classList.add('hidden');
     }
   }
 
@@ -1664,13 +1661,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!userInfo) {
         console.log("User not logged in. Cannot fetch all data.");
         allTimesheetDataCache = {}; // Ensure cache is empty
-        // --- REMOVED: Hide loader call ---
-        // document.getElementById('loading-indicator')?.classList.add('hidden');
+        // --- Hide loader even if not logged in ---
+        document.getElementById('loading-indicator')?.classList.add('hidden');
         return;
     }
     console.log("Fetching all time allocation data...");
-    // --- REMOVED: Show loader call ---
-    // document.getElementById('loading-indicator')?.classList.remove('hidden'); 
+    // --- Show loader just before fetch ---
+    document.getElementById('loading-indicator')?.classList.remove('hidden');
     try {
         const response = await fetch(`/api/GetAllTimeAllocations`);
         if (!response.ok) {
@@ -1689,8 +1686,8 @@ document.addEventListener('DOMContentLoaded', function() {
         resetEntriesToDefault(); // Reset view on error
         render(); // Show error message
     } finally {
-        // --- REMOVED: Hide loader call ---
-        // document.getElementById('loading-indicator')?.classList.add('hidden');
+        // --- Hide loader after fetch (success or error) ---
+        document.getElementById('loading-indicator')?.classList.add('hidden');
     }
   }
   // --- END: New function ---
