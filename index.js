@@ -1531,8 +1531,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const loadingIndicator = document.getElementById('loading-indicator');
 
     try {
-        // --- Show skeleton loader early ---
-        console.log('>>> Showing loading indicator'); // ADDED LOG
+        // --- Show main container FIRST ---
+        weeklyTrackerContainer?.classList.remove('hidden'); 
+        
+        // --- Then show skeleton loader ---
+        console.log('>>> Showing loading indicator');
         loadingIndicator?.classList.remove('hidden');
 
         // Use the existing function to get user info
@@ -1542,13 +1545,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (userInfo) {
             updateAuthUI(); // Update login/logout UI (handles showing user view)
             await loadAllDataIntoCache(); // <<< CALL NEW FUNCTION HERE
-            weeklyTrackerContainer?.classList.remove('hidden'); // Show app content AFTER loading data
+            // weeklyTrackerContainer?.classList.remove('hidden'); // REMOVED from here
         } else {
             updateAuthUI(); // Update UI to show login view
             resetEntriesToDefault(); // Reset the view to default when logged out
             render(); // Re-render to show the cleared state
             // Ensure the container is visible so the login button can be shown by updateAuthUI
-            weeklyTrackerContainer?.classList.remove('hidden'); 
+            // weeklyTrackerContainer?.classList.remove('hidden'); // REMOVED from here
         }
     } catch (error) {
         console.error("Error checking auth status:", error);
@@ -1556,10 +1559,10 @@ document.addEventListener('DOMContentLoaded', function() {
         resetEntriesToDefault(); // Reset the view on error too
         render(); // Re-render to show the cleared state
         // Ensure the container is visible on error too
-        weeklyTrackerContainer?.classList.remove('hidden');
+        // weeklyTrackerContainer?.classList.remove('hidden'); // REMOVED from here
     } finally {
-        // --- Hide loader after fetch (success or error) ---
-        console.log('>>> Hiding loading indicator'); // ADDED LOG
+        // --- Hide loader after everything finishes (success or error) ---
+        console.log('>>> Hiding loading indicator');
         document.getElementById('loading-indicator')?.classList.add('hidden');
     }
   }
