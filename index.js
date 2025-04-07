@@ -262,72 +262,11 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="p-6 relative">
             <!-- NEW: Loading Indicator Overlay -->
             <div id="loading-indicator" class="absolute inset-0 bg-white/90 z-10 flex flex-col items-center justify-center p-6 hidden">
-              <div class="w-full max-w-md space-y-4">
-                <!-- Header Placeholder (Mimics Title + User) -->
-                <div class="flex justify-between items-center mb-4 px-4 h-10">
-                  <div class="h-6 bg-slate-100 rounded w-1/3 relative overflow-hidden">
-                     <div class="shimmer-bg absolute inset-0"></div>
-                  </div>
-                   <div class="h-6 bg-slate-100 rounded w-1/4 relative overflow-hidden">
-                     <div class="shimmer-bg absolute inset-0"></div>
-                  </div>
-                </div>
-                <!-- Week Nav Placeholder -->
-                <div class="flex justify-center items-center gap-3 mb-3">
-                  <div class="h-9 w-9 bg-slate-100 rounded-full relative overflow-hidden"> <!-- Adjusted size -->
-                     <div class="shimmer-bg absolute inset-0"></div>
-                  </div>
-                  <div class="h-6 bg-slate-100 rounded w-1/2 relative overflow-hidden"> <!-- Adjusted size -->
-                     <div class="shimmer-bg absolute inset-0"></div>
-                  </div>
-                  <div class="h-9 w-9 bg-slate-100 rounded-full relative overflow-hidden"> <!-- Adjusted size -->
-                     <div class="shimmer-bg absolute inset-0"></div>
-                  </div>
-                </div>
-                <!-- Entry Row Placeholders (Matching Flex Layout) -->
-                <div class="space-y-3">
-                  <div class="flex items-center gap-3">
-                    <div class="h-10 bg-slate-100 rounded flex-1 relative overflow-hidden"> <!-- flex-1 -->
-                       <div class="shimmer-bg absolute inset-0"></div>
-                    </div>
-                    <div class="h-10 bg-slate-100 rounded w-20 relative overflow-hidden"> <!-- w-20 -->
-                       <div class="shimmer-bg absolute inset-0"></div>
-                    </div>
-                    <div class="h-8 w-8 bg-slate-100 rounded relative overflow-hidden"> <!-- w-8 for button -->
-                       <div class="shimmer-bg absolute inset-0"></div>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <div class="h-10 bg-slate-100 rounded flex-1 relative overflow-hidden">
-                       <div class="shimmer-bg absolute inset-0"></div>
-                    </div>
-                    <div class="h-10 bg-slate-100 rounded w-20 relative overflow-hidden">
-                       <div class="shimmer-bg absolute inset-0"></div>
-                    </div>
-                    <div class="h-8 w-8 bg-slate-100 rounded relative overflow-hidden">
-                       <div class="shimmer-bg absolute inset-0"></div>
-                    </div>
-                  </div>
-                </div>
-                <!-- Add Button Placeholder -->
-                <div class="h-10 bg-slate-100 rounded-md w-full mt-2 relative overflow-hidden"> <!-- Added mt-2 -->
-                   <div class="shimmer-bg absolute inset-0"></div>
-                </div>
-                 <!-- Submit/Total Placeholder (Mimics Layout) -->
-                 <div class="flex justify-between items-center mt-6 pt-4 border-t border-slate-100 px-6">
-                    <div class="flex-1 min-w-0 hidden sm:block"></div> <!-- Spacer -->
-                    <div class="flex-1 flex justify-center min-w-[120px]">
-                       <div class="h-10 bg-slate-100 rounded w-28 relative overflow-hidden"> <!-- Submit button size approx -->
-                           <div class="shimmer-bg absolute inset-0"></div>
-                       </div>
-                    </div>
-                     <div class="flex-1 flex justify-end min-w-[100px]">
-                        <div class="h-6 bg-slate-100 rounded w-24 relative overflow-hidden"> <!-- Total text size approx -->
-                           <div class="shimmer-bg absolute inset-0"></div>
-                        </div>
-                     </div>
-                 </div>
+              <!-- Simplified: Single Rectangle Loader -->
+              <div class="w-3/4 h-1/2 bg-slate-100 rounded-lg relative overflow-hidden">
+                <div class="shimmer-bg absolute inset-0"></div>
               </div>
+              <!-- End Simplified -->
             </div>
             <!-- END: Loading Indicator Overlay -->
 
