@@ -1532,6 +1532,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     try {
         // --- Show skeleton loader early ---
+        console.log('>>> Showing loading indicator'); // ADDED LOG
         loadingIndicator?.classList.remove('hidden');
 
         // Use the existing function to get user info
@@ -1558,6 +1559,7 @@ document.addEventListener('DOMContentLoaded', function() {
         weeklyTrackerContainer?.classList.remove('hidden');
     } finally {
         // --- Hide loader after fetch (success or error) ---
+        console.log('>>> Hiding loading indicator'); // ADDED LOG
         document.getElementById('loading-indicator')?.classList.add('hidden');
     }
   }
