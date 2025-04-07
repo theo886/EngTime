@@ -1659,13 +1659,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!userInfo) {
         console.log("User not logged in. Cannot fetch all data.");
         allTimesheetDataCache = {}; // Ensure cache is empty
-        // --- Hide loader even if not logged in ---
-        document.getElementById('loading-indicator')?.classList.add('hidden');
+        // --- REMOVED: Hide loader call ---
+        // document.getElementById('loading-indicator')?.classList.add('hidden');
         return;
     }
     console.log("Fetching all time allocation data...");
-    // --- Show loader just before fetch ---
-    document.getElementById('loading-indicator')?.classList.remove('hidden');
+    // --- REMOVED: Show loader call ---
+    // document.getElementById('loading-indicator')?.classList.remove('hidden'); 
     try {
         const response = await fetch(`/api/GetAllTimeAllocations`);
         if (!response.ok) {
@@ -1684,8 +1684,8 @@ document.addEventListener('DOMContentLoaded', function() {
         resetEntriesToDefault(); // Reset view on error
         render(); // Show error message
     } finally {
-        // --- Hide loader after fetch (success or error) ---
-        document.getElementById('loading-indicator')?.classList.add('hidden');
+        // --- REMOVED: Hide loader call ---
+        // document.getElementById('loading-indicator')?.classList.add('hidden');
     }
   }
   // --- END: New function ---
