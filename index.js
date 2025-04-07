@@ -196,6 +196,18 @@ document.addEventListener('DOMContentLoaded', function() {
         .user-dropdown-content.show {
           display: block;
         }
+        
+        /* NEW: Shimmer Animation */
+        @keyframes shimmer {
+          0% { background-position: -1000px 0; }
+          100% { background-position: 1000px 0; }
+        }
+        .shimmer-bg {
+          animation: shimmer 2s infinite linear;
+          background: linear-gradient(to right, transparent 0%, #e2e8f0 50%, transparent 100%);
+          background-size: 1000px 100%; /* Adjust size as needed */
+        }
+        /* END: Shimmer Animation */
       </style>
       <div class="max-w-[650px] mx-auto p-4">
         <div class="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -249,35 +261,61 @@ document.addEventListener('DOMContentLoaded', function() {
           
           <div class="p-6 relative">
             <!-- NEW: Loading Indicator Overlay -->
-            <div id="loading-indicator" class="absolute inset-0 bg-white/95 z-10 flex flex-col items-center justify-center p-6 hidden">
-              <div class="animate-pulse w-full max-w-md space-y-4">
+            <div id="loading-indicator" class="absolute inset-0 bg-white/90 z-10 flex flex-col items-center justify-center p-6 hidden"> <!-- Adjusted opacity -->
+              <div class="w-full max-w-md space-y-4"> <!-- Removed animate-pulse -->
                 <!-- Header Placeholder -->
-                <div class="h-6 bg-slate-200 rounded w-3/4 mx-auto"></div>
+                <div class="h-6 bg-slate-100 rounded w-3/4 mx-auto relative overflow-hidden">
+                   <div class="shimmer-bg absolute inset-0"></div>
+                </div>
                 <!-- Week Nav Placeholder -->
                 <div class="flex justify-center items-center gap-4">
-                  <div class="h-8 w-8 bg-slate-200 rounded-full"></div>
-                  <div class="h-5 bg-slate-200 rounded w-1/2"></div>
-                  <div class="h-8 w-8 bg-slate-200 rounded-full"></div>
+                  <div class="h-8 w-8 bg-slate-100 rounded-full relative overflow-hidden">
+                     <div class="shimmer-bg absolute inset-0"></div>
+                  </div>
+                  <div class="h-5 bg-slate-100 rounded w-1/2 relative overflow-hidden">
+                     <div class="shimmer-bg absolute inset-0"></div>
+                  </div>
+                  <div class="h-8 w-8 bg-slate-100 rounded-full relative overflow-hidden">
+                     <div class="shimmer-bg absolute inset-0"></div>
+                  </div>
                 </div>
                 <!-- Entry Row Placeholders -->
                 <div class="space-y-3">
                   <div class="flex items-center gap-3">
-                    <div class="h-10 bg-slate-200 rounded flex-1"></div>
-                    <div class="h-10 bg-slate-200 rounded w-16"></div>
-                    <div class="h-8 bg-slate-200 rounded w-8"></div>
+                    <div class="h-10 bg-slate-100 rounded flex-1 relative overflow-hidden">
+                       <div class="shimmer-bg absolute inset-0"></div>
+                    </div>
+                    <div class="h-10 bg-slate-100 rounded w-16 relative overflow-hidden">
+                       <div class="shimmer-bg absolute inset-0"></div>
+                    </div>
+                    <div class="h-8 bg-slate-100 rounded w-8 relative overflow-hidden">
+                       <div class="shimmer-bg absolute inset-0"></div>
+                    </div>
                   </div>
                   <div class="flex items-center gap-3">
-                    <div class="h-10 bg-slate-200 rounded flex-1"></div>
-                    <div class="h-10 bg-slate-200 rounded w-16"></div>
-                    <div class="h-8 bg-slate-200 rounded w-8"></div>
+                    <div class="h-10 bg-slate-100 rounded flex-1 relative overflow-hidden">
+                       <div class="shimmer-bg absolute inset-0"></div>
+                    </div>
+                    <div class="h-10 bg-slate-100 rounded w-16 relative overflow-hidden">
+                       <div class="shimmer-bg absolute inset-0"></div>
+                    </div>
+                    <div class="h-8 bg-slate-100 rounded w-8 relative overflow-hidden">
+                       <div class="shimmer-bg absolute inset-0"></div>
+                    </div>
                   </div>
                 </div>
                 <!-- Add Button Placeholder -->
-                <div class="h-10 bg-slate-200 rounded-md w-full"></div>
+                <div class="h-10 bg-slate-100 rounded-md w-full relative overflow-hidden">
+                   <div class="shimmer-bg absolute inset-0"></div>
+                </div>
                  <!-- Submit/Total Placeholder -->
                  <div class="flex justify-between items-center mt-4">
-                    <div class="h-10 bg-slate-200 rounded w-24"></div>
-                    <div class="h-6 bg-slate-200 rounded w-20"></div>
+                    <div class="h-10 bg-slate-100 rounded w-24 relative overflow-hidden">
+                       <div class="shimmer-bg absolute inset-0"></div>
+                    </div>
+                    <div class="h-6 bg-slate-100 rounded w-20 relative overflow-hidden">
+                       <div class="shimmer-bg absolute inset-0"></div>
+                    </div>
                  </div>
               </div>
             </div>
