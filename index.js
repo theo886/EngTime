@@ -247,7 +247,42 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
           </div>
           
-          <div class="p-6">
+          <div class="p-6 relative">
+            <!-- NEW: Loading Indicator Overlay -->
+            <div id="loading-indicator" class="absolute inset-0 bg-white/95 z-10 flex flex-col items-center justify-center p-6 hidden">
+              <div class="animate-pulse w-full max-w-md space-y-4">
+                <!-- Header Placeholder -->
+                <div class="h-6 bg-slate-200 rounded w-3/4 mx-auto"></div>
+                <!-- Week Nav Placeholder -->
+                <div class="flex justify-center items-center gap-4">
+                  <div class="h-8 w-8 bg-slate-200 rounded-full"></div>
+                  <div class="h-5 bg-slate-200 rounded w-1/2"></div>
+                  <div class="h-8 w-8 bg-slate-200 rounded-full"></div>
+                </div>
+                <!-- Entry Row Placeholders -->
+                <div class="space-y-3">
+                  <div class="flex items-center gap-3">
+                    <div class="h-10 bg-slate-200 rounded flex-1"></div>
+                    <div class="h-10 bg-slate-200 rounded w-16"></div>
+                    <div class="h-8 bg-slate-200 rounded w-8"></div>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <div class="h-10 bg-slate-200 rounded flex-1"></div>
+                    <div class="h-10 bg-slate-200 rounded w-16"></div>
+                    <div class="h-8 bg-slate-200 rounded w-8"></div>
+                  </div>
+                </div>
+                <!-- Add Button Placeholder -->
+                <div class="h-10 bg-slate-200 rounded-md w-full"></div>
+                 <!-- Submit/Total Placeholder -->
+                 <div class="flex justify-between items-center mt-4">
+                    <div class="h-10 bg-slate-200 rounded w-24"></div>
+                    <div class="h-6 bg-slate-200 rounded w-20"></div>
+                 </div>
+              </div>
+            </div>
+            <!-- END: Loading Indicator Overlay -->
+
             <div class="flex justify-center items-center gap-3 mb-3">
               <button id="prev-week-button" class="text-slate-600 hover:bg-slate-100 p-2 rounded">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1493,7 +1528,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // --- NEW: Authentication and Data Functions ---
   async function checkAuthStatus() {
     const weeklyTrackerContainer = document.getElementById('weekly-tracker'); // Get main content div
+    const loadingIndicator = document.getElementById('loading-indicator');
+
     try {
+        // --- Show skeleton loader early ---
+        loadingIndicator?.classList.remove('hidden');
+
         // Use the existing function to get user info
         userInfo = await getUserInfoFromAuthEndpoint(); 
         console.log("User info from checkAuthStatus:", userInfo);
@@ -1516,6 +1556,9 @@ document.addEventListener('DOMContentLoaded', function() {
         render(); // Re-render to show the cleared state
         // Ensure the container is visible on error too
         weeklyTrackerContainer?.classList.remove('hidden');
+    } finally {
+        // --- Hide loader after fetch (success or error) ---
+        document.getElementById('loading-indicator')?.classList.add('hidden');
     }
   }
 
@@ -1616,9 +1659,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!userInfo) {
         console.log("User not logged in. Cannot fetch all data.");
         allTimesheetDataCache = {}; // Ensure cache is empty
+        // --- Hide loader even if not logged in ---
+        document.getElementById('loading-indicator')?.classList.add('hidden');
         return;
     }
     console.log("Fetching all time allocation data...");
+    // --- Show loader just before fetch ---
+    document.getElementById('loading-indicator')?.classList.remove('hidden');
     try {
         const response = await fetch(`/api/GetAllTimeAllocations`);
         if (!response.ok) {
@@ -1636,6 +1683,9 @@ document.addEventListener('DOMContentLoaded', function() {
         allTimesheetDataCache = {}; // Clear cache on error
         resetEntriesToDefault(); // Reset view on error
         render(); // Show error message
+    } finally {
+        // --- Hide loader after fetch (success or error) ---
+        document.getElementById('loading-indicator')?.classList.add('hidden');
     }
   }
   // --- END: New function ---
