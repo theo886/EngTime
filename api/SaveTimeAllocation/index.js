@@ -25,6 +25,10 @@ module.exports = async function (context, req) {
     const userId = clientPrincipal.userId; // Use this ID to associate data with the user
     const { week, userEmail, entries } = req.body; // Expecting { week: "MM/DD/YYYY - MM/DD/YYYY", userEmail: "...", entries: [{ projectId: "...", percentage: ... }] }
 
+    // --- NEW: Generate submission timestamp ---
+    const dateSubmitted = new Date(); 
+    // --- END NEW ---
+
     if (!week || !userEmail || !Array.isArray(entries)) {
         context.res = { status: 400, body: "Invalid request body. Expecting 'week', 'userEmail', and 'entries' array." };
         return;
@@ -50,18 +54,24 @@ module.exports = async function (context, req) {
                                .input('Week', sql.NVarChar, week) // Ensure your DB column matches this type/length
                                .query('DELETE FROM TimeAllocations WHERE UserId = @UserId AND Week = @Week'); // TODO: Replace TimeAllocations with actual table name
 
-            // Insert new entries
+            // --- MODIFIED: Insert new entries with calculated Hours and dateSubmitted ---
             for (const entry of entries) {
                 if (entry.projectId && entry.percentage != null) { // Ensure required data exists
+                    const percentage = parseInt(entry.percentage);
+                    const hours = parseFloat((percentage * 0.4).toFixed(1)); // Calculate hours (e.g., 13.2)
+                    
                     const insertRequest = transaction.request();
                     await insertRequest.input('UserId', sql.NVarChar, userId)
                                        .input('Week', sql.NVarChar, week)
                                        .input('ProjectId', sql.NVarChar, entry.projectId) // Adjust type/length if needed
-                                       .input('Percentage', sql.Int, parseInt(entry.percentage)) // Ensure percentage is stored as int
+                                       .input('Percentage', sql.Int, percentage) // Ensure percentage is stored as int
                                        .input('UserEmail', sql.NVarChar, userEmail) // Assumes NVARCHAR column
-                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, Percentage, UserEmail) VALUES (@UserId, @Week, @ProjectId, @Percentage, @UserEmail)'); // TODO: Replace TimeAllocations with actual table name
+                                       .input('Hours', sql.Decimal(4, 1), hours) // Add Hours, ensure type matches DB
+                                       .input('DateSubmitted', sql.DateTime2, dateSubmitted) // Add DateSubmitted, ensure type matches DB
+                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, Percentage, UserEmail, Hours, DateSubmitted) VALUES (@UserId, @Week, @ProjectId, @Percentage, @UserEmail, @Hours, @DateSubmitted)'); // TODO: Replace TimeAllocations with actual table name, ADD new columns
                 }
             }
+            // --- END MODIFIED ---
 
             await transaction.commit(); // Commit transaction if all inserts succeed
 
@@ -71,13 +81,20 @@ module.exports = async function (context, req) {
             const powerAutomateUrl = process.env.POWER_AUTOMATE_SAVE_URL;
 
             if (powerAutomateUrl) {
-                // Prepare payload for Power Automate
+                // --- MODIFIED: Prepare payload for Power Automate with new fields ---
+                const entriesWithHours = entries.map(entry => ({
+                    ...entry,
+                    hours: parseFloat(((parseInt(entry.percentage) || 0) * 0.4).toFixed(1)) // Calculate hours again for payload
+                }));
+
                 const excelPayload = {
                     userId: userId, // Already have this from clientPrincipal
                     userEmail: clientPrincipal.userDetails, // Assuming userDetails is the email
                     week: week, // Already have this from request body
-                    entries: entries // The array of entries from request body
+                    dateSubmitted: dateSubmitted.toISOString(), // Send as ISO string
+                    entries: entriesWithHours // Send entries array with calculated hours
                 };
+                // --- END MODIFIED ---
 
                 try {
                     // Make POST request to Power Automate - run asynchronously without await
