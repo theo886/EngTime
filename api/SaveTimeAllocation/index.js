@@ -1,4 +1,5 @@
 const sql = require('mssql');
+const axios = require('axios');
 
 // Helper function to get user info from header
 function getUserInfo(req) {
@@ -63,6 +64,46 @@ module.exports = async function (context, req) {
             }
 
             await transaction.commit(); // Commit transaction if all inserts succeed
+
+            context.log('Database commit successful. Attempting to trigger Excel update flow.');
+
+            // Get the Power Automate URL from environment variables
+            const powerAutomateUrl = process.env.POWER_AUTOMATE_SAVE_URL;
+
+            if (powerAutomateUrl) {
+                // Prepare payload for Power Automate
+                const excelPayload = {
+                    userId: userId, // Already have this from clientPrincipal
+                    userEmail: clientPrincipal.userDetails, // Assuming userDetails is the email
+                    week: week, // Already have this from request body
+                    entries: entries // The array of entries from request body
+                };
+
+                try {
+                    // Make POST request to Power Automate - run asynchronously without await
+                    // We don't want the function to wait for Excel update to respond to the client
+                    axios.post(powerAutomateUrl, excelPayload)
+                        .then(response => {
+                            context.log(`Successfully triggered Excel update flow. Status: ${response.status}`);
+                        })
+                        .catch(paError => {
+                            // Log error but don't fail the main function execution
+                            context.log.error('Error triggering Power Automate flow:', paError.message);
+                            if (paError.response) {
+                                context.log.error('Power Automate Error Response:', paError.response.data);
+                            }
+                        });
+
+                } catch (paTriggerError) {
+                    // Catch potential synchronous errors during the axios call setup
+                     context.log.error('Synchronous error setting up Power Automate trigger:', paTriggerError.message);
+                }
+
+            } else {
+                context.log.warn('POWER_AUTOMATE_SAVE_URL environment variable not set. Skipping Excel update.');
+            }
+            
+            // Set the success response for the original HTTP trigger AFTER initiating the async call
             context.res = { status: 200, body: { message: "Timesheet saved successfully." } };
 
         } catch (err) {
