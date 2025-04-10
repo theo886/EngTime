@@ -1466,7 +1466,10 @@ document.addEventListener('DOMContentLoaded', function() {
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            position: 'bottom'
+            position: 'bottom',
+            labels: {
+              usePointStyle: true // Add this line
+            }
           },
           tooltip: {
             callbacks: {
