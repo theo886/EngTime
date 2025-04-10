@@ -1608,10 +1608,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const response = await fetch('/api/SaveTimeAllocation', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            // --- MODIFIED: Add userEmail to payload ---
+            // --- MODIFIED: Add userEmail and WeekStartDate to payload ---
             body: JSON.stringify({ 
                 week: weekData, 
                 userEmail: userEmail, // Added email
+                WeekStartDate: formatWeekStart(currentWeek), // Added WeekStartDate
                 entries: allocationEntries 
             })
         });

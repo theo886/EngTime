@@ -23,7 +23,7 @@ module.exports = async function (context, req) {
     }
 
     const userId = clientPrincipal.userId; // Use this ID to associate data with the user
-    const { week, userEmail, entries } = req.body; // Expecting { week: "MM/DD/YYYY - MM/DD/YYYY", userEmail: "...", entries: [{ projectId: "...", percentage: ... }] }
+    const { week, userEmail, WeekStartDate, entries } = req.body; // Expecting { week: "MM/DD/YYYY - MM/DD/YYYY", userEmail: "...", WeekStartDate: "MM/DD/YYYY", entries: [{ projectId: "...", percentage: ... }] }
 
     // --- NEW: Generate submission timestamp ---
     const dateSubmitted = new Date(); 
@@ -68,7 +68,7 @@ module.exports = async function (context, req) {
                                        .input('UserEmail', sql.NVarChar, userEmail) // Assumes NVARCHAR column
                                        .input('Hours', sql.Decimal(4, 1), hours) // Add Hours, ensure type matches DB
                                        .input('DateSubmitted', sql.DateTime2, dateSubmitted) // Add DateSubmitted, ensure type matches DB
-                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, Percentage, UserEmail, Hours, DateSubmitted) VALUES (@UserId, @Week, @ProjectId, @Percentage, @UserEmail, @Hours, @DateSubmitted)'); // TODO: Replace TimeAllocations with actual table name, ADD new columns
+                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, Percentage, UserEmail, Hours, DateSubmitted) VALUES (@UserId, @Week, @ProjectId, @Percentage, @UserEmail, @Hours, @DateSubmitted)'); // TODO: Replace TimeAllocations with actual table name, ADD new columns if needed (like WeekStartDate)
                 }
             }
             // --- END MODIFIED ---
@@ -86,12 +86,17 @@ module.exports = async function (context, req) {
                     ...entry,
                     hours: parseFloat(((parseInt(entry.percentage) || 0) * 0.4).toFixed(1)) // Calculate hours again for payload
                 }));
+                
+                // Calculate total hours for the payload
+                const totalHoursAllocated = entriesWithHours.reduce((sum, entry) => sum + entry.hours, 0);
 
                 const excelPayload = {
                     userId: userId, // Already have this from clientPrincipal
                     userEmail: clientPrincipal.userDetails, // Assuming userDetails is the email
                     week: week, // Already have this from request body
+                    weekStartDate: WeekStartDate, // Add WeekStartDate received from frontend
                     dateSubmitted: dateSubmitted.toISOString(), // Send as ISO string
+                    totalHoursAllocated: parseFloat(totalHoursAllocated.toFixed(1)), // Add total hours
                     entries: entriesWithHours // Send entries array with calculated hours
                 };
                 // --- END MODIFIED ---
