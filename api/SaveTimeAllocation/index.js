@@ -68,7 +68,8 @@ module.exports = async function (context, req) {
                                        .input('UserEmail', sql.NVarChar, userEmail) // Assumes NVARCHAR column
                                        .input('Hours', sql.Decimal(4, 1), hours) // Add Hours, ensure type matches DB
                                        .input('DateSubmitted', sql.DateTime2, dateSubmitted) // Add DateSubmitted, ensure type matches DB
-                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, Percentage, UserEmail, Hours, DateSubmitted) VALUES (@UserId, @Week, @ProjectId, @Percentage, @UserEmail, @Hours, @DateSubmitted)'); // TODO: Replace TimeAllocations with actual table name, ADD new columns if needed (like WeekStartDate)
+                                       .input('WeekStartDate', sql.NVarChar, WeekStartDate) // Add WeekStartDate parameter
+                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, Percentage, UserEmail, Hours, DateSubmitted, WeekStartDate) VALUES (@UserId, @Week, @ProjectId, @Percentage, @UserEmail, @Hours, @DateSubmitted, @WeekStartDate)'); // Added WeekStartDate to columns and values
                 }
             }
             // --- END MODIFIED ---
@@ -82,21 +83,26 @@ module.exports = async function (context, req) {
 
             if (powerAutomateUrl) {
                 // --- MODIFIED: Prepare payload for Power Automate with new fields ---
-                const entriesWithHours = entries.map(entry => ({
-                    ...entry,
-                    hours: parseFloat(((parseInt(entry.percentage) || 0) * 0.4).toFixed(1)) // Calculate hours again for payload
-                }));
+                // Calculate hours the same way for webhook 
+                const entriesWithHours = entries.map(entry => {
+                    if (entry.projectId && entry.percentage != null) {
+                        const percentage = parseInt(entry.percentage);
+                        const hours = parseFloat((percentage * 0.4).toFixed(1)); // Same calculation as DB (percentage * 0.4)
+                        return {
+                            projectId: entry.projectId,
+                            percentage: percentage,
+                            hours: hours
+                        };
+                    }
+                    return null;
+                }).filter(entry => entry !== null); // Remove null entries
                 
-                // Calculate total hours for the payload
-                const totalHoursAllocated = entriesWithHours.reduce((sum, entry) => sum + entry.hours, 0);
-
                 const excelPayload = {
                     userId: userId, // Already have this from clientPrincipal
                     userEmail: clientPrincipal.userDetails, // Assuming userDetails is the email
                     week: week, // Already have this from request body
                     weekStartDate: WeekStartDate, // Add WeekStartDate received from frontend
                     dateSubmitted: dateSubmitted.toISOString(), // Send as ISO string
-                    totalHoursAllocated: parseFloat(totalHoursAllocated.toFixed(1)), // Add total hours
                     entries: entriesWithHours // Send entries array with calculated hours
                 };
                 // --- END MODIFIED ---
