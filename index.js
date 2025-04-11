@@ -260,13 +260,59 @@ document.addEventListener('DOMContentLoaded', function() {
           </div>
           
           <div class="p-6 relative">
-            <!-- NEW: Loading Indicator Overlay -->
-            <div id="loading-indicator" class="absolute inset-0 bg-white/90 z-10 flex flex-col items-center justify-center p-6 hidden">
-              <!-- Simplified: Single Rectangle Loader -->
-              <div class="w-3/4 h-1/2 bg-slate-100 rounded-lg relative overflow-hidden">
-                <div class="shimmer-bg absolute inset-0"></div>
+            <!-- Loading Indicator Overlay -->
+            <div id="loading-indicator" class="absolute inset-0 z-10 hidden bg-white/75">
+              <div class="flex flex-col space-y-3 p-4">
+                <!-- Single project dropdown skeleton -->
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="flex-1 min-w-0">
+                    <div class="relative min-w-0 overflow-visible">
+                      <div class="flex items-center justify-between px-3 py-2 border rounded-md bg-slate-100 relative overflow-hidden" style="height: 38px;">
+                        <div class="shimmer-bg absolute inset-0"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="shrink-0">
+                    <div class="relative w-[4.5rem] mx-auto">
+                      <div class="w-full px-2 py-2 border rounded-md text-center bg-slate-100 relative overflow-hidden" style="height: 38px;">
+                        <div class="shimmer-bg absolute inset-0"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="shrink-0 flex items-center justify-center">
+                    <div class="h-8 w-8 bg-slate-100 rounded-md relative overflow-hidden">
+                      <div class="shimmer-bg absolute inset-0"></div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Add project button skeleton -->
+                <div class="pt-2">
+                  <div class="w-full border border-dashed border-indigo-300 py-2 rounded-md bg-slate-100 relative overflow-hidden" style="height: 38px;">
+                    <div class="shimmer-bg absolute inset-0"></div>
+                  </div>
+                </div>
+                
+                <!-- Submit button skeleton -->
+                <div class="mt-6 pt-4 border-t">
+                  <div class="flex flex-wrap justify-between items-center">
+                    <div class="flex-1 min-w-0 hidden sm:block"></div>
+                    
+                    <div class="flex-1 flex justify-center mt-4 sm:mt-0 min-w-[120px]">
+                      <div class="bg-slate-100 px-8 py-2 rounded relative overflow-hidden" style="width: 120px; height: 40px;">
+                        <div class="shimmer-bg absolute inset-0"></div>
+                      </div>
+                    </div>
+                    
+                    <div class="flex-1 flex justify-end items-center mt-4 sm:mt-0 min-w-[100px]">
+                      <span class="mr-2">Total:</span>
+                      <div class="bg-slate-100 px-3 py-1 rounded relative overflow-hidden w-16">
+                        <div class="shimmer-bg absolute inset-0"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <!-- End Simplified -->
             </div>
             <!-- END: Loading Indicator Overlay -->
 
