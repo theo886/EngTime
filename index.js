@@ -292,26 +292,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="shimmer-bg absolute inset-0"></div>
                   </div>
                 </div>
-                
-                <!-- Submit button skeleton -->
-                <div class="mt-6 pt-4 border-t">
-                  <div class="flex flex-wrap justify-between items-center">
-                    <div class="flex-1 min-w-0 hidden sm:block"></div>
-                    
-                    <div class="flex-1 flex justify-center mt-4 sm:mt-0 min-w-[120px]">
-                      <div class="bg-slate-100 px-8 py-2 rounded relative overflow-hidden" style="width: 120px; height: 40px;">
-                        <div class="shimmer-bg absolute inset-0"></div>
-                      </div>
-                    </div>
-                    
-                    <div class="flex-1 flex justify-end items-center mt-4 sm:mt-0 min-w-[100px]">
-                      <span class="mr-2">Total:</span>
-                      <div class="bg-slate-100 px-3 py-1 rounded relative overflow-hidden w-16">
-                        <div class="shimmer-bg absolute inset-0"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
             <!-- END: Loading Indicator Overlay -->
