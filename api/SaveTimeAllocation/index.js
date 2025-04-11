@@ -64,12 +64,13 @@ module.exports = async function (context, req) {
                     await insertRequest.input('UserId', sql.NVarChar, userId)
                                        .input('Week', sql.NVarChar, week)
                                        .input('ProjectId', sql.NVarChar, entry.projectId) // Adjust type/length if needed
+                                       .input('ProjectName', sql.NVarChar, entry.projectName || 'Unknown Project') // Add ProjectName parameter
                                        .input('Percentage', sql.Int, percentage) // Ensure percentage is stored as int
                                        .input('UserEmail', sql.NVarChar, userEmail) // Assumes NVARCHAR column
                                        .input('Hours', sql.Decimal(4, 1), hours) // Add Hours, ensure type matches DB
                                        .input('DateSubmitted', sql.DateTime2, dateSubmitted) // Add DateSubmitted, ensure type matches DB
                                        .input('WeekStartDate', sql.NVarChar, WeekStartDate) // Add WeekStartDate parameter
-                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, Percentage, UserEmail, Hours, DateSubmitted, WeekStartDate) VALUES (@UserId, @Week, @ProjectId, @Percentage, @UserEmail, @Hours, @DateSubmitted, @WeekStartDate)'); // Added WeekStartDate to columns and values
+                                       .query('INSERT INTO TimeAllocations (UserId, Week, ProjectId, ProjectName, Percentage, UserEmail, Hours, DateSubmitted, WeekStartDate) VALUES (@UserId, @Week, @ProjectId, @ProjectName, @Percentage, @UserEmail, @Hours, @DateSubmitted, @WeekStartDate)'); // Added ProjectName and WeekStartDate to columns and values
                 }
             }
             // --- END MODIFIED ---
@@ -90,6 +91,7 @@ module.exports = async function (context, req) {
                         const hours = parseFloat((percentage * 0.4).toFixed(1)); // Same calculation as DB (percentage * 0.4)
                         return {
                             projectId: entry.projectId,
+                            projectName: entry.projectName || 'Unknown Project', // Include project name from the request
                             percentage: percentage,
                             hours: hours
                         };

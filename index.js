@@ -397,10 +397,15 @@ document.addEventListener('DOMContentLoaded', function() {
       // Prepare entries in the format expected by the API/cache update
       const entriesToSave = entries
           .filter(e => e.projectId) // Only include entries with a selected project
-          .map(e => ({
-              projectId: e.projectId,
-              percentage: parseInt(e.percentage || '0', 10) // Ensure it's an integer
-          }));
+          .map(e => {
+              // Find the project to get its name
+              const project = projects.find(p => p.id.toString() === e.projectId);
+              return {
+                  projectId: e.projectId,
+                  projectName: project ? project.name : 'Unknown Project', // Include project name
+                  percentage: parseInt(e.percentage || '0', 10) // Ensure it's an integer
+              };
+          });
       saveData(weekStr, entriesToSave); // Call the modified save function
     });
     document.getElementById('pin-button').addEventListener('click', togglePin);
