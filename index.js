@@ -443,6 +443,30 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update submit button
     updateSubmitButton();
+    
+    // Disable Add Project button if user is not logged in
+    const addProjectButton = document.getElementById('add-project-button');
+    if (addProjectButton) {
+      if (!userInfo) {
+        addProjectButton.disabled = true;
+        addProjectButton.classList.add('opacity-60', 'cursor-not-allowed', 'hover:bg-white');
+        addProjectButton.classList.remove('hover:bg-indigo-50');
+      } else {
+        addProjectButton.disabled = isAnyDropdownOpen;
+        addProjectButton.classList.remove('opacity-60', 'cursor-not-allowed', 'hover:bg-white');
+        if (!isAnyDropdownOpen) {
+          addProjectButton.classList.add('hover:bg-indigo-50');
+        }
+      }
+    }
+    
+    // Disable Submit button if user is not logged in
+    const submitButton = document.getElementById('submit-button');
+    if (submitButton && !userInfo) {
+      submitButton.disabled = true;
+      submitButton.classList.add('opacity-60', 'cursor-not-allowed');
+      submitButton.classList.remove('hover:bg-indigo-700');
+    }
 
     // --- Disable/Enable Next Week Button ---
     const nextWeekButton = document.getElementById('next-week-button');
@@ -485,7 +509,14 @@ document.addEventListener('DOMContentLoaded', function() {
       selectContainer.dataset.id = entry.id;
       
       const selectTrigger = document.createElement('div');
-      selectTrigger.className = `flex items-center justify-between px-3 py-2 border rounded-md cursor-pointer ${isDuplicateProject(entry.projectId) ? 'border-red-500' : ''}`;
+      selectTrigger.className = `flex items-center justify-between px-3 py-2 border rounded-md ${isDuplicateProject(entry.projectId) ? 'border-red-500' : ''}`;
+      
+      // Add cursor-pointer class and appropriate disabled styling based on login status
+      if (userInfo) {
+        selectTrigger.classList.add('cursor-pointer');
+      } else {
+        selectTrigger.classList.add('cursor-not-allowed', 'opacity-60');
+      }
       
       // Find the selected project to display its color
       const selectedProject = entry.projectId ? projects.find(p => p.id.toString() === entry.projectId) : null;
@@ -504,9 +535,12 @@ document.addEventListener('DOMContentLoaded', function() {
         </svg>
       `;
       
-      selectTrigger.addEventListener('click', function(event) {
-        toggleDropdown(entry.id, event);
-      });
+      // Only add click event listener if user is logged in
+      if (userInfo) {
+        selectTrigger.addEventListener('click', function(event) {
+          toggleDropdown(entry.id, event);
+        });
+      }
       
       selectContainer.appendChild(selectTrigger);
       
@@ -583,6 +617,13 @@ document.addEventListener('DOMContentLoaded', function() {
       const bgColorClass = manuallyEditedIds.has(entry.id) ? 'bg-white' : 'bg-slate-50';
       
       input.className = `w-full px-2 py-2 border rounded-md text-center unit-input ${bgColorClass}`;
+      
+      // Disable input if user not logged in
+      if (!userInfo) {
+        input.disabled = true;
+        input.classList.add('opacity-60', 'cursor-not-allowed');
+      }
+      
       input.addEventListener('change', function(e) {
         const newValue = e.target.value;
         
@@ -604,25 +645,30 @@ document.addEventListener('DOMContentLoaded', function() {
       percentSymbol.className = 'unit-toggle-btn';
       percentSymbol.textContent = entryInputModes[entry.id] === 'percent' ? '%' : 'hr';
       
-      // Make the symbol clickable to toggle between percent and hours
-      percentSymbol.addEventListener('click', function() {
-        // Toggle the input mode
-        entryInputModes[entry.id] = entryInputModes[entry.id] === 'percent' ? 'hours' : 'percent';
-        
-        // Re-render to update the UI
-        render();
-        
-        // Focus the input after toggling
-        setTimeout(() => {
-          const inputs = document.querySelectorAll('input[type="number"]');
-          inputs.forEach(input => {
-            if (input.closest(`[data-id="${entry.id}"]`)) {
-              input.focus();
-              input.select();
-            }
-          });
-        }, 50);
-      });
+      // Disable percentage toggle if user not logged in
+      if (!userInfo) {
+        percentSymbol.classList.add('opacity-60', 'cursor-not-allowed');
+      } else {
+        // Make the symbol clickable to toggle between percent and hours
+        percentSymbol.addEventListener('click', function() {
+          // Toggle the input mode
+          entryInputModes[entry.id] = entryInputModes[entry.id] === 'percent' ? 'hours' : 'percent';
+          
+          // Re-render to update the UI
+          render();
+          
+          // Focus the input after toggling
+          setTimeout(() => {
+            const inputs = document.querySelectorAll('input[type="number"]');
+            inputs.forEach(input => {
+              if (input.closest(`[data-id="${entry.id}"]`)) {
+                input.focus();
+                input.select();
+              }
+            });
+          }, 50);
+        });
+      }
       
       inputContainer.appendChild(input);
       inputContainer.appendChild(percentSymbol);
@@ -636,12 +682,25 @@ document.addEventListener('DOMContentLoaded', function() {
       if (entries.length > 1) {
         const removeButton = document.createElement('button');
         removeButton.className = 'h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md flex items-center justify-center flex-shrink-0';
+        
+        // Disable remove button if user is not logged in
+        if (!userInfo) {
+          removeButton.disabled = true;
+          removeButton.classList.add('opacity-60', 'cursor-not-allowed');
+          removeButton.classList.remove('hover:text-red-700', 'hover:bg-red-50');
+        }
+        
         removeButton.innerHTML = `
           <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         `;
-        removeButton.addEventListener('click', function() {
-          removeEntry(entry.id);
-        });
+        
+        // Only add click event if user is logged in
+        if (userInfo) {
+          removeButton.addEventListener('click', function() {
+            removeEntry(entry.id);
+          });
+        }
+        
         removeDiv.appendChild(removeButton);
       }
       
