@@ -10,6 +10,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@azure/data-tables": "^13.3.0",
+    "@azure/identity": "^4.8.0",
     "axios": "^1.8.4",
     "mssql": "^11.0.1"
   }
