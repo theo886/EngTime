@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     isAnyDropdownOpen = false;
     document.getElementById('add-project-button').disabled = false;
-    resetEntriesToDefault();
+    //resetEntriesToDefault();
   }
 
   // --- NEW: Function to reset entries to default state ---
