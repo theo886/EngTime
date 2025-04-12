@@ -69,38 +69,42 @@ module.exports = async function (context, req) {
         // --- Step 1: Find existing entities for this user and week ---
         const existingEntities = [];
         const entitiesToDelete = tableClient.listEntities({
-            queryOptions: { filter: `PartitionKey eq '${userId}' and week eq '${week}'` } // Use the 'week' property
+            queryOptions: { filter: `PartitionKey eq '${userId}' and week eq '${week}'` }
         });
         for await (const entity of entitiesToDelete) {
             existingEntities.push({ partitionKey: entity.partitionKey, rowKey: entity.rowKey });
         }
-        context.log(`Found ${existingEntities.length} existing entities for user ${userId}, week ${week}.`);
+        context.log(`Found ${existingEntities.length} existing entities for user ${userId}, week ${week} to delete.`);
 
-        // --- Step 2: Prepare batch operations (Delete old, Upsert new) ---
-        const batch = [];
+        // --- Step 2: Prepare and submit DELETE batch transaction ---
+        if (existingEntities.length > 0) {
+            const deleteBatch = existingEntities.map(entityMeta => 
+                ["delete", { partitionKey: entityMeta.partitionKey, rowKey: entityMeta.rowKey }]
+            );
+            context.log(`Submitting delete batch with ${deleteBatch.length} operations.`);
+            const deleteResponse = await tableClient.submitTransaction(deleteBatch);
+            context.log(`Delete batch transaction submitted. Status: ${deleteResponse.status}`);
+            // Optional: Check sub-responses for individual delete errors if needed
+        } else {
+            context.log("No existing entities found for this week, skipping delete batch.");
+        }
 
-        // Add delete operations for existing entities
-        existingEntities.forEach(entityMeta => {
-            batch.push(["delete", { partitionKey: entityMeta.partitionKey, rowKey: entityMeta.rowKey }]);
-        });
-
-        // Add upsert operations for new/updated entries
-        // Filter out entries without a project ID *before* processing
-        const validEntries = entries.filter(entry => entry.projectId);
+        // --- Step 3: Prepare and submit UPSERT batch transaction ---
+        const upsertBatch = [];
+        const validEntries = entries.filter(entry => entry.projectId); // Filter out entries without a project ID
 
         validEntries.forEach(entry => {
-            const percentage = parseInt(entry.percentage); // Already parsed by frontend
+            const percentage = parseInt(entry.percentage);
             const hours = parseFloat((percentage * 0.4).toFixed(1));
-            // Revised SaveTimeAllocation RowKey: Use WeekStartDate (which should be just MM/DD/YYYY) instead of the full week string for the key part.
-            const weekStartDateClean = (WeekStartDate || week.split(' - ')[0]).replace(/\//g, '-'); // Replace slashes
+            const weekStartDateClean = (WeekStartDate || week.split(' - ')[0]).replace(/\//g, '-');
             const rowKey = `${weekStartDateClean}_${entry.projectId}`;
 
             const newEntity = {
                 partitionKey: userId,
                 rowKey: rowKey,
-                userId: userId, // Store for convenience
-                week: week,     // Store the FULL original week string here for grouping in GetAll
-                weekStartDate: WeekStartDate || week.split(' - ')[0], // Store the start date too
+                userId: userId,
+                week: week,
+                weekStartDate: WeekStartDate || week.split(' - ')[0],
                 projectId: entry.projectId,
                 projectName: entry.projectName || 'Unknown Project',
                 percentage: percentage,
@@ -108,21 +112,17 @@ module.exports = async function (context, req) {
                 hours: hours,
                 dateSubmitted: dateSubmitted
             };
-            batch.push(["upsert", newEntity]); // Upsert handles both insert and update
+            upsertBatch.push(["upsert", newEntity]);
         });
 
-         context.log(`Prepared batch with ${batch.length} operations.`);
-
-        // --- Step 3: Submit the batch transaction ---
-         if (batch.length > 0) {
-            // Only submit if there are operations (either deletes or upserts or both)
-             const response = await tableClient.submitTransaction(batch);
-             context.log(`Batch transaction submitted. Status: ${response.status}`);
-             // Optional: Check sub-responses within response.subResponses for individual operation status if needed
-         } else {
-             context.log("No changes detected, skipping batch submission.");
-         }
-
+        if (upsertBatch.length > 0) {
+            context.log(`Submitting upsert batch with ${upsertBatch.length} operations.`);
+            const upsertResponse = await tableClient.submitTransaction(upsertBatch);
+            context.log(`Upsert batch transaction submitted. Status: ${upsertResponse.status}`);
+             // Optional: Check sub-responses for individual upsert errors if needed
+        } else {
+             context.log("No valid entries to upsert, skipping upsert batch.");
+        }
 
         // --- Step 4: Trigger Power Automate (Keep existing logic) ---
         const powerAutomateUrl = process.env.POWER_AUTOMATE_SAVE_URL;
