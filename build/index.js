@@ -970,16 +970,16 @@ document.addEventListener('DOMContentLoaded', function() {
               <p class="text-sm mt-1">Submit some timesheets to see real data in these reports. Currently showing projected/sample data.</p>
             </div>
             
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div class="bg-white p-4 rounded-lg shadow">
-                <div class="h-96">
-                  <canvas id="time-series-chart"></canvas>
-                </div>
-              </div>
-              
+            <div class="grid grid-cols-1 gap-6">
               <div class="bg-white p-4 rounded-lg shadow">
                 <div class="h-80">
                   <canvas id="pie-chart"></canvas>
+                </div>
+              </div>
+
+              <div class="bg-white p-4 rounded-lg shadow">
+                <div class="h-96">
+                  <canvas id="time-series-chart"></canvas>
                 </div>
               </div>
             </div>
@@ -1427,11 +1427,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('pie-chart').getContext('2d');
     
     new Chart(ctx, {
-      type: 'pie',
+      type: 'doughnut',
       data: data,
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        cutout: '50%',
         plugins: {
           legend: {
             position: 'bottom'
