@@ -3,9 +3,9 @@ const { DefaultAzureCredential } = require("@azure/identity");
 const axios = require('axios');
 
 // --- Authentication ---
-// Use Managed Identity (Recommended for Azure deployment)
-const accountName = "engtimetable"; // Your storage account name
-const tableName = "engtime"; // Your table name
+// Use Managed Identity ONLY (Recommended for Azure deployment)
+const accountName = "engtimetable";
+const tableName = "engtime";
 const credential = new DefaultAzureCredential();
 const tableClient = new TableClient(`https://${accountName}.table.core.windows.net`, tableName, credential);
 

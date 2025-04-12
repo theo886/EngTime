@@ -1,25 +1,12 @@
 const { TableClient } = require("@azure/data-tables");
-const { DefaultAzureCredential } = require("@azure/identity"); // Use Managed Identity
+const { DefaultAzureCredential } = require("@azure/identity");
 
 // --- Authentication ---
-// Use Managed Identity (Recommended for Azure deployment)
-const accountName = "engtimetable"; // Your storage account name
-const tableName = "engtime"; // Your table name
+// Use Managed Identity ONLY (Recommended for Azure deployment)
+const accountName = "engtimetable";
+const tableName = "engtime";
 const credential = new DefaultAzureCredential();
 const tableClient = new TableClient(`https://${accountName}.table.core.windows.net`, tableName, credential);
-
-/* // Option 1: Use Connection String (Less secure for deployed apps)
-const connectionString = process.env.AZURE_TABLE_STORAGE_CONNECTION_STRING;
-const tableName = "engtime"; // Your table name
-let tableClient;
-if (connectionString) {
-    // ... (parsing logic remains the same but is now commented out)
-    const { AzureNamedKeyCredential } = require("@azure/data-tables"); // Need this if using connection string
-    // ...
-} else {
-     throw new Error("Azure Table Storage connection string not configured AND Managed Identity failed.");
-}
-*/
 // --- End Authentication ---
 
 
