@@ -1499,8 +1499,9 @@ document.addEventListener('DOMContentLoaded', function() {
             labels: {
               usePointStyle: true,     // Use circles instead of rectangles in legend
               padding: 15,             // More padding between legend items
-              // Reverse the legend order to match the visualization order
-              reverse: true
+              // Reverse the legend order - REMOVED as we now sort alphabetically
+              // reverse: true, 
+              sort: (a, b) => a.text.localeCompare(b.text) // Sort legend alphabetically
             }
           },
           tooltip: {
@@ -1554,12 +1555,13 @@ document.addEventListener('DOMContentLoaded', function() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '40%', // Updated cutout to 40%
+        cutout: '50%', // Reverted cutout to 50%
         plugins: {
           legend: {
             position: 'bottom',
             labels: {
-              usePointStyle: true // Add this line
+              usePointStyle: true, // Add this line
+              sort: (a, b) => a.text.localeCompare(b.text) // Sort legend alphabetically
             }
           },
           tooltip: {
