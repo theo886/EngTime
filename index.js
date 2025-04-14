@@ -1549,11 +1549,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('pie-chart').getContext('2d');
     
     new Chart(ctx, {
-      type: 'pie',
+      type: 'doughnut', // Changed from 'pie'
       data: data,
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        cutout: '50%', // Added cutout for donut effect
         plugins: {
           legend: {
             position: 'bottom',
