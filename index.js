@@ -1107,15 +1107,15 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             
             <div class="grid grid-cols-1 gap-6">
-              <div class="bg-white p-4 rounded-lg shadow">
-                <div class="h-96">
-                  <canvas id="time-series-chart"></canvas>
+              <div class="bg-white p-4 rounded-lg shadow"> <!-- Donut chart container -->
+                <div class="h-80">
+                  <canvas id="pie-chart"></canvas>
                 </div>
               </div>
               
-              <div class="bg-white p-4 rounded-lg shadow">
-                <div class="h-80">
-                  <canvas id="pie-chart"></canvas>
+              <div class="bg-white p-4 rounded-lg shadow"> <!-- Time series chart container -->
+                <div class="h-96">
+                  <canvas id="time-series-chart"></canvas>
                 </div>
               </div>
             </div>
@@ -1554,7 +1554,7 @@ document.addEventListener('DOMContentLoaded', function() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '50%', // Added cutout for donut effect
+        cutout: '40%', // Updated cutout to 40%
         plugins: {
           legend: {
             position: 'bottom',
