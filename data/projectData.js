@@ -29,6 +29,24 @@ const projectData = [
     "color": "#2ECC71"
   },
   {
+    "id": "DD000200",
+    "name": "Water Default Project Code",
+    "code": "DD000200",
+    "color": "#3498DB"  // Blue color for water
+  },
+  {
+    "id": "DD000210",
+    "name": "Waste Water Default Project Code",
+    "code": "DD000210",
+    "color": "#2C3E50"  // Dark blue-gray for waste water
+  },
+  {
+    "id": "GE000001",
+    "name": "Time Off",
+    "code": "GE000001",
+    "color": "#95A5A6"  // Light gray for time off
+  },
+  {
     "id": "MS000002",
     "name": "NPI ST PX Series",
     "code": "MS000002",
@@ -66,7 +84,7 @@ const projectData = [
   },
   {
     "id": "RD000047",
-    "name": "PX Pump Train II",
+    "name": "PX Power Train II",
     "code": "RD000047",
     "color": "#16A085"
   },
