@@ -13,6 +13,10 @@
     },
     "routes": [
       {
+        "route": "/.auth/*",
+        "allowedRoles": ["anonymous"]
+      },
+      {
         "route": "/*",
         "allowedRoles": ["authenticated"]
       }
