@@ -1,1 +1,20 @@
-{"routes":[]}
+{
+    "auth": {
+      "identityProviders": {
+        "azureActiveDirectory": {
+          "login": {
+            "loginParameters": [
+              "response_type=code id_token",
+              "scope=openid profile email"
+            ]
+          }
+        }
+      }
+    },
+    "routes": [
+      {
+        "route": "/*",
+        "allowedRoles": ["authenticated"]
+      }
+    ]
+  }
