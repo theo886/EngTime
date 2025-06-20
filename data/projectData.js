@@ -42,7 +42,7 @@ const projectData = [
   },
   {
     "id": "GE000001",
-    "name": "Time Off",
+    "name": "Time Off / Holiday",
     "code": "GE000001",
     "color": "#95A5A6"  // Light gray for time off
   },
