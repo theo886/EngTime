@@ -1,4 +1,4 @@
-/**
+e/**
  * Project Data Repository
  * 
  * This file contains the official list of projects available in the Weekly Percentage Tracker.
@@ -126,9 +126,15 @@ const projectData = [
   },
   { 
     "id": "VQ000013",
-    "name": "PX Q500 Development",
+    "name": "Project Eagle",
     "code": "VQ000013",
     "color": "#D2B4DE"
+  },
+  { 
+    "id": "VQ000014",
+    "name": "Project Falcon",
+    "code": "VQ000013",
+    "color": "#8B4513"
   },
   {
     "id": "WI000004",
