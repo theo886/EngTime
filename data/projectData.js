@@ -1,4 +1,4 @@
-e/**
+/**
  * Project Data Repository
  * 
  * This file contains the official list of projects available in the Weekly Percentage Tracker.
