@@ -95,6 +95,12 @@ const projectData = [
     "color": "#8E44AD"
   },
   {
+    "id": "RD000049",
+    "name": "PXG V2.5 Integration",
+    "code": "RD000049",
+    "color": "#E91E63"
+  },
+  {
     "id": "VQ000008",
     "name": "Water Sales Support",
     "code": "VQ000008",
