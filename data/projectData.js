@@ -32,19 +32,19 @@ const projectData = [
     "id": "DD000200",
     "name": "Water Default Project Code",
     "code": "DD000200",
-    "color": "#3498DB"  // Blue color for water
+    "color": "#3498DB"
   },
   {
     "id": "DD000210",
     "name": "Waste Water Default Project Code",
     "code": "DD000210",
-    "color": "#2C3E50"  // Dark blue-gray for waste water
+    "color": "#2C3E50"
   },
   {
     "id": "GE000001",
     "name": "Time Off / Holiday",
     "code": "GE000001",
-    "color": "#95A5A6"  // Light gray for time off
+    "color": "#95A5A6"
   },
   {
     "id": "MS000002",
@@ -66,7 +66,7 @@ const projectData = [
   },
   {
     "id": "RD000027",
-    "name": "PMO-025 - PXG V3",
+    "name": "Skunkworks",
     "code": "RD000027",
     "color": "#E67E22"
   },
@@ -83,12 +83,6 @@ const projectData = [
     "color": "#D35400"
   },
   {
-    "id": "RD000047",
-    "name": "PX Power Train II",
-    "code": "RD000047",
-    "color": "#16A085"
-  },
-  {
     "id": "RD000048",
     "name": "DOE - PXG for Heat Pump",
     "code": "RD000048",
@@ -99,6 +93,24 @@ const projectData = [
     "name": "PXG V2.5 Integration",
     "code": "RD000049",
     "color": "#E91E63"
+  },
+  {
+    "id": "RD000050",
+    "name": "Eductor",
+    "code": "RD000050",
+    "color": "#5D6D7E"
+  },
+  {
+    "id": "RD000051",
+    "name": "PX Lite",
+    "code": "RD000051",
+    "color": "#48C9B0"
+  },
+  {
+    "id": "VQ000003",
+    "name": "R&D Technology Pipeline",
+    "code": "VQ000003",
+    "color": "#AF7AC5"
   },
   {
     "id": "VQ000008",
@@ -130,13 +142,13 @@ const projectData = [
     "code": "VQ000012",
     "color": "#7F8C8D"
   },
-  { 
+  {
     "id": "VQ000013",
     "name": "Project Eagle",
     "code": "VQ000013",
     "color": "#D2B4DE"
   },
-  { 
+  {
     "id": "VQ000014",
     "name": "Project Falcon",
     "code": "VQ000014",
@@ -146,7 +158,7 @@ const projectData = [
     "id": "WI000004",
     "name": "Aquabold Improvements",
     "code": "WI000004",
-    "color": "#3498DB" // Suitable color
+    "color": "#3498DB"
   },
   {
     "id": "WI000007",
