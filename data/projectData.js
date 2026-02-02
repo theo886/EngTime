@@ -76,13 +76,7 @@ const projectData = [
     "code": "RD000042",
     "color": "#34495E"
   },
-  {
-    "id": "RD000043",
-    "name": "PX G Controls",
-    "code": "RD000043",
-    "color": "#D35400"
-  },
-  {
+   {
     "id": "RD000048",
     "name": "DOE - PXG for Heat Pump",
     "code": "RD000048",
