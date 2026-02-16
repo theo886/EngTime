@@ -1,9 +1,9 @@
 const { createTableClient, getUserInfo } = require("../shared/tableClient");
 
-const tableClient = createTableClient("usersettings");
-
 module.exports = async function (context, req) {
     context.log('SaveUserSettings function processing request.');
+
+    const tableClient = createTableClient("usersettings");
 
     const clientPrincipal = getUserInfo(req);
     if (!clientPrincipal || !clientPrincipal.userId) {

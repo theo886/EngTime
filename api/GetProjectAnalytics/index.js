@@ -1,11 +1,11 @@
 const { createTableClient, getUserInfo, isAdmin } = require("../shared/tableClient");
 
-const engtimeClient = createTableClient("engtime");
-const budgetsClient = createTableClient("projectbudgets");
-const projectsClient = createTableClient("projects");
-
 module.exports = async function (context, req) {
     context.log('GetProjectAnalytics function processing request.');
+
+    const engtimeClient = createTableClient("engtime");
+    const budgetsClient = createTableClient("projectbudgets");
+    const projectsClient = createTableClient("projects");
 
     const clientPrincipal = getUserInfo(req);
     if (!clientPrincipal || !clientPrincipal.userId) {

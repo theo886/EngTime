@@ -1,9 +1,9 @@
 const { createTableClient } = require("../shared/tableClient");
 
-const tableClient = createTableClient("projects");
-
 module.exports = async function (context, req) {
     context.log('GetProjects function processing request.');
+
+    const tableClient = createTableClient("projects");
 
     // Optional query param to include inactive projects (for admin views)
     const includeInactive = req.query.includeInactive === 'true';

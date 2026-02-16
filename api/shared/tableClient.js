@@ -5,22 +5,19 @@ const connectionString = process.env.AZURE_TABLE_STORAGE_CONNECTION_STRING;
 
 /**
  * Creates a TableClient for the given table name.
- * Uses connection string if available, otherwise falls back to Managed Identity.
+ * Uses connection string (always set in production via AZURE_TABLE_STORAGE_CONNECTION_STRING).
  */
 function createTableClient(tableName) {
-    if (connectionString) {
-        const accountKeyMatch = connectionString.match(/AccountKey=([^;]+)/);
-        if (!accountKeyMatch) {
-            throw new Error("Could not parse AccountKey from connection string.");
-        }
-        const accountKey = accountKeyMatch[1];
-        const credential = new AzureNamedKeyCredential(accountName, accountKey);
-        return new TableClient(`https://${accountName}.table.core.windows.net`, tableName, credential);
-    } else {
-        const { DefaultAzureCredential } = require("@azure/identity");
-        const credential = new DefaultAzureCredential();
-        return new TableClient(`https://${accountName}.table.core.windows.net`, tableName, credential);
+    if (!connectionString) {
+        throw new Error("AZURE_TABLE_STORAGE_CONNECTION_STRING environment variable is not set.");
     }
+    const accountKeyMatch = connectionString.match(/AccountKey=([^;]+)/);
+    if (!accountKeyMatch) {
+        throw new Error("Could not parse AccountKey from connection string.");
+    }
+    const accountKey = accountKeyMatch[1];
+    const credential = new AzureNamedKeyCredential(accountName, accountKey);
+    return new TableClient(`https://${accountName}.table.core.windows.net`, tableName, credential);
 }
 
 /**

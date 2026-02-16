@@ -1,9 +1,9 @@
 const { createTableClient, getUserInfo, isAdmin } = require("../shared/tableClient");
 
-const tableClient = createTableClient("engtime");
-
 module.exports = async function (context, req) {
     context.log('SaveTimeAllocationForUser function processing request.');
+
+    const tableClient = createTableClient("engtime");
 
     const clientPrincipal = getUserInfo(req);
     if (!clientPrincipal || !clientPrincipal.userId) {

@@ -1,9 +1,9 @@
 const { createTableClient, getUserInfo, isAdmin } = require("../shared/tableClient");
 
-const adminsClient = createTableClient("admins");
-
 module.exports = async function (context, req) {
     context.log('UpdateAdmins function processing request.');
+
+    const adminsClient = createTableClient("admins");
 
     const clientPrincipal = getUserInfo(req);
     if (!clientPrincipal || !clientPrincipal.userId) {
