@@ -27,6 +27,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let userInfo = null; // Store user info
   let userDefaultInputMode = 'percent'; // User's preferred default input mode (percent or hours)
   let isAdmin = false; // Whether current user is an admin
+  let timeSeriesChartInstance = null;
+  let pieChartInstance = null;
   
   // // Load fake data for testing if in debug mode
   // if (debugMode) {
@@ -957,6 +959,27 @@ document.addEventListener('DOMContentLoaded', function() {
     return `${startDate.getMonth() + 1}/${startDate.getDate()}/${startDate.getFullYear()}`;
   }
 
+  function getTimescaleCutoffDate(timescale) {
+    const today = new Date();
+    const cutoffDate = new Date(today);
+    switch (timescale) {
+      case '3mo':
+        cutoffDate.setMonth(today.getMonth() - 3);
+        break;
+      case '6mo':
+        cutoffDate.setMonth(today.getMonth() - 6);
+        break;
+      case '1yr':
+        cutoffDate.setFullYear(today.getFullYear() - 1);
+        break;
+      case 'all':
+        return null;
+      default:
+        cutoffDate.setMonth(today.getMonth() - 3);
+    }
+    return cutoffDate;
+  }
+
   function goToPreviousWeek() {
     const prevWeekDate = new Date(currentWeek);
     prevWeekDate.setDate(prevWeekDate.getDate() - 7);
@@ -1260,6 +1283,24 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Function to create the reports page content
+  function initializeTimescaleSelector() {
+    const selector = document.getElementById('timescale-selector');
+    if (!selector) {
+      console.error('Timescale selector not found');
+      return '3mo';
+    }
+
+    const savedTimescale = localStorage.getItem('reportsTimescale') || '3mo';
+    selector.value = savedTimescale;
+
+    selector.addEventListener('change', function() {
+      localStorage.setItem('reportsTimescale', this.value);
+      generateReports(this.value);
+    });
+
+    return savedTimescale;
+  }
+
   function createReportsPage() {
     const reportsContainer = document.getElementById('reports-container');
     
@@ -1277,6 +1318,15 @@ document.addEventListener('DOMContentLoaded', function() {
                   Back to Timesheet
                 </button>
               </div>
+            </div>
+            <div class="mt-4 flex justify-center items-center">
+              <label class="mr-3 text-sm font-medium text-gray-700">Time Range:</label>
+              <select id="timescale-selector" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 bg-white text-sm">
+                <option value="3mo">Last 3 Months</option>
+                <option value="6mo">Last 6 Months</option>
+                <option value="1yr">Last Year</option>
+                <option value="all">All Time</option>
+              </select>
             </div>
           </div>
           
@@ -1310,32 +1360,53 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('weekly-tracker').classList.remove('hidden');
     });
     
-    // Generate the reports data
-    generateReports();
+    // Initialize timescale selector and get saved preference
+    const initialTimescale = initializeTimescaleSelector();
+
+    // Generate reports with the selected timescale
+    generateReports(initialTimescale);
   }
 
   // Function to generate the report charts
-  function generateReports() {
+  function generateReports(timescale = '3mo') {
     // Process data for the charts
-    const projectData = processProjectData();
-    
-    // Show warning if using sample data
+    const projectData = processProjectData(timescale);
+
     const noDataMessage = document.getElementById('no-data-message');
-    if (Object.keys(allTimesheetDataCache).length === 0) {
-      noDataMessage.classList.remove('hidden');
-    } else {
-      noDataMessage.classList.add('hidden');
+
+    // Check if filtered data is empty but cache has data
+    if (projectData.timeData.labels.length === 0 && Object.keys(allTimesheetDataCache).length > 0) {
+      if (noDataMessage) {
+        noDataMessage.textContent = '';
+        const p1 = document.createElement('p');
+        p1.className = 'font-medium';
+        p1.textContent = 'No data available for selected time range';
+        const p2 = document.createElement('p');
+        p2.className = 'text-sm mt-1';
+        p2.textContent = 'Try selecting a different time range or submit more timesheets.';
+        noDataMessage.appendChild(p1);
+        noDataMessage.appendChild(p2);
+        noDataMessage.classList.remove('hidden');
+      }
+      return;
     }
-    
+
+    // Show warning if no data at all
+    if (Object.keys(allTimesheetDataCache).length === 0) {
+      if (noDataMessage) noDataMessage.classList.remove('hidden');
+    } else {
+      if (noDataMessage) noDataMessage.classList.add('hidden');
+    }
+
     // Create the time series chart as a streamgraph
     createTimeSeriesChart(projectData.timeData);
-    
+
     // Create the pie chart
     createPieChart(projectData.totalData, projectData.totalWeeks);
   }
 
   // Process project data for the charts
-  function processProjectData() {
+  function processProjectData(timescale = '3mo') {
     // Gather all submissions from the cache
     const submissionWeeks = Object.keys(allTimesheetDataCache); // <<< Use allTimesheetDataCache
     console.log("Found submission weeks from cache:", submissionWeeks);
@@ -1367,14 +1438,24 @@ document.addEventListener('DOMContentLoaded', function() {
       const [month, day, year] = parts.map(Number);
       return new Date(year, month - 1, day); // Note: months are 0-indexed in JS Date
     };
-    
+
+    // Filter weeks based on timescale
+    const cutoffDate = getTimescaleCutoffDate(timescale);
+    let filteredWeeks = submissionWeeks;
+    if (cutoffDate !== null) {
+      filteredWeeks = submissionWeeks.filter(week => {
+        const weekStartDate = getWeekStartDate(week);
+        return weekStartDate >= cutoffDate;
+      });
+    }
+
     // Check if we have actual submissions in the cache
-    if (submissionWeeks.length > 0) {
+    if (filteredWeeks.length > 0) {
       console.log("Using real submission data from cache for charts");
-      totalWeeks = submissionWeeks.length;
-      
+      totalWeeks = filteredWeeks.length;
+
       // Sort weeks chronologically by start date
-      const sortedWeeks = [...submissionWeeks].sort((a, b) => {
+      const sortedWeeks = [...filteredWeeks].sort((a, b) => {
         const dateA = getWeekStartDate(a);
         const dateB = getWeekStartDate(b);
         return dateA - dateB;
@@ -1604,7 +1685,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // Create time series chart as a streamgraph
   function createTimeSeriesChart(data) {
     const ctx = document.getElementById('time-series-chart').getContext('2d');
-    
+
+    if (timeSeriesChartInstance) {
+      timeSeriesChartInstance.destroy();
+    }
+
     // Create a color gradient for each dataset to enhance the streamgraph effect
     const createGradient = (ctx, color) => {
       // Extract the HSL values
@@ -1638,8 +1723,8 @@ document.addEventListener('DOMContentLoaded', function() {
         };
       })
     };
-    
-    new Chart(ctx, {
+
+    timeSeriesChartInstance = new Chart(ctx, {
       type: 'line',
       data: streamData,
       options: {
@@ -1728,8 +1813,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // Create pie chart
   function createPieChart(data, totalWeeks) {
     const ctx = document.getElementById('pie-chart').getContext('2d');
-    
-    new Chart(ctx, {
+
+    if (pieChartInstance) {
+      pieChartInstance.destroy();
+    }
+
+    pieChartInstance = new Chart(ctx, {
       type: 'doughnut', // Changed from 'pie'
       data: data,
       options: {
@@ -2094,15 +2183,15 @@ document.addEventListener('DOMContentLoaded', function() {
             percentage: String(entry.Percentage), // Ensure string
             isManuallySet: false
         }));
+        manuallyEditedIds = new Set(); // Reset manual edits for cached weeks
         isSubmitted = true;
         isModified = false;
     } else {
         // No data in cache for this week, treat as new/empty
-        resetEntriesToDefault(); // Use the existing reset function
+        resetEntriesToDefault(); // Sets manuallyEditedIds with default entry
         isSubmitted = false;
         isModified = false;
     }
-    manuallyEditedIds = new Set(); // Always reset manual edits when navigating weeks
     entryInputModes = {}; // Reset input modes
     render(); // Render the UI with the populated/reset entries
   }
