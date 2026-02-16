@@ -1230,18 +1230,176 @@
     });
   }
   // ====== ANALYTICS TAB ======
-  async function loadAnalyticsTab(contentEl) {
-    const response = await fetch('/api/GetProjectAnalytics');
-    if (!response.ok) throw new Error('Failed to load analytics');
-    const analytics = await response.json();
 
+  function getDateRangeFromPreset(preset) {
+    if (preset === 'custom') return null;
+    if (preset === 'all') return { startDate: null, endDate: null };
+
+    const now = new Date();
+    const endDate = now.toISOString().slice(0, 10);
+    const start = new Date(now);
+
+    if (preset === '3mo') start.setMonth(start.getMonth() - 3);
+    else if (preset === '6mo') start.setMonth(start.getMonth() - 6);
+    else if (preset === '1yr') start.setFullYear(start.getFullYear() - 1);
+
+    return { startDate: start.toISOString().slice(0, 10), endDate: endDate };
+  }
+
+  function buildAnalyticsUrl(startDate, endDate) {
+    let url = '/api/GetProjectAnalytics';
+    const params = [];
+    if (startDate) params.push('startDate=' + encodeURIComponent(startDate));
+    if (endDate) params.push('endDate=' + encodeURIComponent(endDate));
+    if (params.length > 0) url += '?' + params.join('&');
+    return url;
+  }
+
+  async function loadAnalyticsTab(contentEl) {
     contentEl.textContent = '';
+
+    // Restore saved selection
+    const savedPreset = localStorage.getItem('analyticsDatePreset') || '3mo';
+    const savedCustomStart = localStorage.getItem('analyticsCustomStart') || '';
+    const savedCustomEnd = localStorage.getItem('analyticsCustomEnd') || '';
+
+    // Selector row
+    const selectorRow = document.createElement('div');
+    selectorRow.className = 'mb-4 flex flex-wrap gap-3 items-center';
+
+    const label = document.createElement('label');
+    label.className = 'text-sm font-medium text-slate-700';
+    label.textContent = 'Date Range:';
+
+    const select = document.createElement('select');
+    select.className = 'px-3 py-2 border rounded text-sm';
+    const presets = [
+      { value: '3mo', label: 'Last 3 Months' },
+      { value: '6mo', label: 'Last 6 Months' },
+      { value: '1yr', label: 'Last 12 Months' },
+      { value: 'all', label: 'All Time' },
+      { value: 'custom', label: 'Custom...' }
+    ];
+    presets.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.value;
+      opt.textContent = p.label;
+      if (p.value === savedPreset) opt.selected = true;
+      select.appendChild(opt);
+    });
+
+    // Custom date pickers (hidden unless Custom is selected)
+    const customRow = document.createElement('div');
+    customRow.className = 'flex gap-2 items-center' + (savedPreset !== 'custom' ? ' hidden' : '');
+
+    const startInput = document.createElement('input');
+    startInput.type = 'date';
+    startInput.className = 'px-2 py-1.5 border rounded text-sm';
+    startInput.value = savedCustomStart;
+
+    const toLabel = document.createElement('span');
+    toLabel.className = 'text-sm text-slate-500';
+    toLabel.textContent = 'to';
+
+    const endInput = document.createElement('input');
+    endInput.type = 'date';
+    endInput.className = 'px-2 py-1.5 border rounded text-sm';
+    endInput.value = savedCustomEnd;
+
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700';
+    applyBtn.textContent = 'Apply';
+
+    customRow.appendChild(startInput);
+    customRow.appendChild(toLabel);
+    customRow.appendChild(endInput);
+    customRow.appendChild(applyBtn);
+
+    selectorRow.appendChild(label);
+    selectorRow.appendChild(select);
+    selectorRow.appendChild(customRow);
+    contentEl.appendChild(selectorRow);
+
+    // Content area for charts/tables (below selector)
+    const analyticsContent = document.createElement('div');
+    contentEl.appendChild(analyticsContent);
+
+    // Fetch and render logic
+    async function fetchAndRender() {
+      let startDate = null;
+      let endDate = null;
+      const preset = select.value;
+
+      localStorage.setItem('analyticsDatePreset', preset);
+
+      if (preset === 'custom') {
+        startDate = startInput.value || null;
+        endDate = endInput.value || null;
+        localStorage.setItem('analyticsCustomStart', startDate || '');
+        localStorage.setItem('analyticsCustomEnd', endDate || '');
+
+        if (!startDate || !endDate) {
+          analyticsContent.textContent = '';
+          const hint = document.createElement('div');
+          hint.className = 'text-center py-8 text-slate-400';
+          hint.textContent = 'Select start and end dates, then click Apply.';
+          analyticsContent.appendChild(hint);
+          return;
+        }
+      } else {
+        const range = getDateRangeFromPreset(preset);
+        if (range) {
+          startDate = range.startDate;
+          endDate = range.endDate;
+        }
+      }
+
+      // Show loading
+      analyticsContent.textContent = '';
+      const loading = document.createElement('div');
+      loading.className = 'text-center py-8 text-slate-400';
+      loading.textContent = 'Loading analytics...';
+      analyticsContent.appendChild(loading);
+
+      try {
+        const url = buildAnalyticsUrl(startDate, endDate);
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to load analytics');
+        const analytics = await response.json();
+        renderAnalyticsContent(analyticsContent, analytics);
+      } catch (err) {
+        analyticsContent.textContent = '';
+        const errDiv = document.createElement('div');
+        errDiv.className = 'text-center py-8 text-red-500';
+        errDiv.textContent = 'Error loading analytics: ' + err.message;
+        analyticsContent.appendChild(errDiv);
+      }
+    }
+
+    // Event wiring
+    select.addEventListener('change', () => {
+      if (select.value === 'custom') {
+        customRow.classList.remove('hidden');
+      } else {
+        customRow.classList.add('hidden');
+        fetchAndRender();
+      }
+    });
+
+    applyBtn.addEventListener('click', () => fetchAndRender());
+
+    // Initial fetch
+    await fetchAndRender();
+  }
+
+  function renderAnalyticsContent(container, analytics) {
+    container.textContent = '';
 
     if (analytics.length === 0) {
       const emptyDiv = document.createElement('div');
       emptyDiv.className = 'text-center py-8 text-slate-400';
-      emptyDiv.textContent = 'No analytics data available. Set project budgets and submit timesheets first.';
-      contentEl.appendChild(emptyDiv);
+      emptyDiv.textContent = 'No analytics data available for this date range.';
+      container.appendChild(emptyDiv);
       return;
     }
 
@@ -1252,7 +1410,7 @@
     const canvas = document.createElement('canvas');
     canvas.id = 'analytics-chart';
     chartContainer.appendChild(canvas);
-    contentEl.appendChild(chartContainer);
+    container.appendChild(chartContainer);
 
     // Build chart data
     const labels = analytics.map(p => p.projectName);
@@ -1324,7 +1482,7 @@
       const sectionTitle = document.createElement('h4');
       sectionTitle.className = 'text-lg font-bold text-red-600 mt-6 mb-3';
       sectionTitle.textContent = 'Over-Budget Projects';
-      contentEl.appendChild(sectionTitle);
+      container.appendChild(sectionTitle);
 
       overBudgetProjects.forEach(proj => {
         const section = document.createElement('div');
@@ -1395,7 +1553,7 @@
 
         section.appendChild(header);
         section.appendChild(body);
-        contentEl.appendChild(section);
+        container.appendChild(section);
       });
     }
 
@@ -1405,7 +1563,7 @@
       const sectionTitle = document.createElement('h4');
       sectionTitle.className = 'text-lg font-bold text-green-600 mt-6 mb-3';
       sectionTitle.textContent = 'On-Budget Projects';
-      contentEl.appendChild(sectionTitle);
+      container.appendChild(sectionTitle);
 
       onBudgetProjects.forEach(proj => {
         const row = document.createElement('div');
@@ -1421,7 +1579,7 @@
 
         row.appendChild(nameSpan);
         row.appendChild(statsSpan);
-        contentEl.appendChild(row);
+        container.appendChild(row);
       });
     }
   }

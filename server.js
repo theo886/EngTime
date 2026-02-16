@@ -61,7 +61,46 @@ const MOCK_API = {
   ],
   '/api/GetAllTimeAllocations': [],
   '/api/GetAllUsersTimesheets': [],
-  '/api/GetProjectAnalytics': [],
+  '/api/GetProjectAnalytics': [
+    {
+      projectId: 'RD000049', projectName: 'PXG V2.5 Integration',
+      budgetHours: 480, actualHours: 620, budgetQ1: 2, budgetQ2: 2, budgetQ3: 1, budgetQ4: 1,
+      isOverBudget: true, overBy: 140,
+      userBreakdown: [
+        { userEmail: 'atheodossiou@energyrecovery.com', totalHours: 320 },
+        { userEmail: 'jsmith@energyrecovery.com', totalHours: 200 },
+        { userEmail: 'klee@energyrecovery.com', totalHours: 100 }
+      ]
+    },
+    {
+      projectId: 'CP000022', projectName: 'General R&D Infrastructure',
+      budgetHours: 800, actualHours: 540, budgetQ1: 3, budgetQ2: 3, budgetQ3: 2, budgetQ4: 2,
+      isOverBudget: false, overBy: 0,
+      userBreakdown: [
+        { userEmail: 'atheodossiou@energyrecovery.com', totalHours: 200 },
+        { userEmail: 'jsmith@energyrecovery.com', totalHours: 180 },
+        { userEmail: 'klee@energyrecovery.com', totalHours: 160 }
+      ]
+    },
+    {
+      projectId: 'RD000050', projectName: 'Eductor',
+      budgetHours: 320, actualHours: 280, budgetQ1: 1, budgetQ2: 1, budgetQ3: 1, budgetQ4: 1,
+      isOverBudget: false, overBy: 0,
+      userBreakdown: [
+        { userEmail: 'jsmith@energyrecovery.com', totalHours: 160 },
+        { userEmail: 'klee@energyrecovery.com', totalHours: 120 }
+      ]
+    },
+    {
+      projectId: 'VQ000013', projectName: 'Project Eagle',
+      budgetHours: 200, actualHours: 250, budgetQ1: 0.5, budgetQ2: 0.5, budgetQ3: 0.5, budgetQ4: 0.5,
+      isOverBudget: true, overBy: 50,
+      userBreakdown: [
+        { userEmail: 'atheodossiou@energyrecovery.com', totalHours: 150 },
+        { userEmail: 'klee@energyrecovery.com', totalHours: 100 }
+      ]
+    }
+  ],
 };
 
 const server = http.createServer((req, res) => {

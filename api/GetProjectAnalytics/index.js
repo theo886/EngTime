@@ -41,7 +41,29 @@ module.exports = async function (context, req) {
             };
         }
 
-        // Step 2: Scan all timesheet entries for current year and aggregate
+        // Parse optional date range query parameters (ISO format: YYYY-MM-DD)
+        const startDateParam = req.query.startDate;
+        const endDateParam = req.query.endDate;
+        let filterStartDate = null;
+        let filterEndDate = null;
+        const useCurrentYearFilter = !startDateParam && !endDateParam;
+
+        if (startDateParam) {
+            filterStartDate = new Date(startDateParam + 'T00:00:00');
+            if (isNaN(filterStartDate.getTime())) {
+                context.res = { status: 400, body: "Invalid startDate format. Use YYYY-MM-DD." };
+                return;
+            }
+        }
+        if (endDateParam) {
+            filterEndDate = new Date(endDateParam + 'T23:59:59');
+            if (isNaN(filterEndDate.getTime())) {
+                context.res = { status: 400, body: "Invalid endDate format. Use YYYY-MM-DD." };
+                return;
+            }
+        }
+
+        // Step 2: Scan all timesheet entries and aggregate (filtered by date range)
         const currentYear = new Date().getFullYear();
         const projectAggregation = {};
         const engtimeEntities = engtimeClient.listEntities();
@@ -50,7 +72,6 @@ module.exports = async function (context, req) {
             const projectId = entity.projectId;
             if (!projectId) continue;
 
-            // Parse weekStartDate to determine quarter and filter to current year
             const weekStart = entity.weekStartDate;
             if (!weekStart) continue;
 
@@ -58,7 +79,14 @@ module.exports = async function (context, req) {
             if (parts.length !== 3) continue;
 
             const entryDate = new Date(parts[2], parts[0] - 1, parts[1]);
-            if (entryDate.getFullYear() !== currentYear) continue;
+
+            // Apply date filter: backward-compat current-year or explicit range
+            if (useCurrentYearFilter) {
+                if (entryDate.getFullYear() !== currentYear) continue;
+            } else {
+                if (filterStartDate && entryDate < filterStartDate) continue;
+                if (filterEndDate && entryDate > filterEndDate) continue;
+            }
 
             const month = entryDate.getMonth(); // 0-11
             const quarter = Math.floor(month / 3) + 1; // 1-4
