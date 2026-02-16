@@ -348,6 +348,58 @@
     desc.textContent = 'Set FTE (Full-Time Engineer) budget per quarter. 1 FTE = 40 hrs/week.';
     contentEl.appendChild(desc);
 
+    // Filter to active projects for export/import
+    const activeProjects = projectsList.filter(p => p.isActive);
+
+    // Export/Import buttons
+    const btnRow = document.createElement('div');
+    btnRow.className = 'mb-4 flex gap-2';
+
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700';
+    exportBtn.textContent = 'Export to Excel';
+    exportBtn.addEventListener('click', () => {
+      if (typeof XLSX === 'undefined') {
+        alert('Excel library failed to load. Please refresh the page.');
+        return;
+      }
+      exportBudgetsToExcel(activeProjects);
+      exportBtn.textContent = 'Downloaded!';
+      exportBtn.className = 'px-4 py-2 bg-green-700 text-white rounded text-sm';
+      setTimeout(() => {
+        exportBtn.textContent = 'Export to Excel';
+        exportBtn.className = 'px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700';
+      }, 1500);
+    });
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.xlsx,.xls';
+    fileInput.className = 'hidden';
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        handleBudgetImport(file, activeProjects, contentEl);
+        fileInput.value = '';
+      }
+    });
+
+    const importBtn = document.createElement('button');
+    importBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700';
+    importBtn.textContent = 'Import from Excel';
+    importBtn.addEventListener('click', () => {
+      if (typeof XLSX === 'undefined') {
+        alert('Excel library failed to load. Please refresh the page.');
+        return;
+      }
+      fileInput.click();
+    });
+
+    btnRow.appendChild(exportBtn);
+    btnRow.appendChild(importBtn);
+    btnRow.appendChild(fileInput);
+    contentEl.appendChild(btnRow);
+
     const table = document.createElement('table');
     table.className = 'w-full text-sm';
 
@@ -452,6 +504,320 @@
     });
     table.appendChild(tbody);
     contentEl.appendChild(table);
+  }
+
+  // ====== BUDGET EXCEL EXPORT/IMPORT ======
+  function exportBudgetsToExcel(activeProjects) {
+    const rows = activeProjects.map(p => ({
+      'Project ID': p.id,
+      'Project Name': p.name,
+      'Q1 FTE': p.budgetQ1 || 0,
+      'Q2 FTE': p.budgetQ2 || 0,
+      'Q3 FTE': p.budgetQ3 || 0,
+      'Q4 FTE': p.budgetQ4 || 0
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 20 },  // Project ID
+      { wch: 35 },  // Project Name
+      { wch: 10 },  // Q1
+      { wch: 10 },  // Q2
+      { wch: 10 },  // Q3
+      { wch: 10 }   // Q4
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Budgets');
+
+    const today = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, 'EngTime_Budgets_' + today + '.xlsx');
+  }
+
+  function handleBudgetImport(file, activeProjects, contentEl) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+
+        if (rows.length === 0) {
+          showImportMessage(contentEl, 'The imported file contains no data rows.', 'red');
+          return;
+        }
+
+        // Validate column headers (case-insensitive)
+        const firstRow = rows[0];
+        const keys = Object.keys(firstRow);
+        const findCol = (target) => keys.find(k => k.toLowerCase().replace(/\s+/g, '') === target.toLowerCase().replace(/\s+/g, ''));
+
+        const colId = findCol('ProjectID');
+        const colQ1 = findCol('Q1FTE');
+        const colQ2 = findCol('Q2FTE');
+        const colQ3 = findCol('Q3FTE');
+        const colQ4 = findCol('Q4FTE');
+
+        if (!colId) {
+          showImportMessage(contentEl, 'Missing required column: "Project ID". Please use the exported template.', 'red');
+          return;
+        }
+        if (!colQ1 || !colQ2 || !colQ3 || !colQ4) {
+          showImportMessage(contentEl, 'Missing one or more Q columns (Q1 FTE, Q2 FTE, Q3 FTE, Q4 FTE). Please use the exported template.', 'red');
+          return;
+        }
+
+        // Validate each row
+        const errors = [];
+        const activeIds = new Set(activeProjects.map(p => p.id));
+        const importedRows = [];
+
+        rows.forEach((row, idx) => {
+          const rowNum = idx + 2; // 1-indexed + header
+          const projectId = String(row[colId] || '').trim();
+
+          if (!projectId) {
+            errors.push('Row ' + rowNum + ': Missing Project ID');
+            return;
+          }
+          if (!activeIds.has(projectId)) {
+            errors.push('Row ' + rowNum + ': Unknown or inactive project "' + projectId + '"');
+            return;
+          }
+
+          const q1 = Number(row[colQ1]);
+          const q2 = Number(row[colQ2]);
+          const q3 = Number(row[colQ3]);
+          const q4 = Number(row[colQ4]);
+
+          if (isNaN(q1) || q1 < 0) { errors.push('Row ' + rowNum + ': Invalid Q1 value'); return; }
+          if (isNaN(q2) || q2 < 0) { errors.push('Row ' + rowNum + ': Invalid Q2 value'); return; }
+          if (isNaN(q3) || q3 < 0) { errors.push('Row ' + rowNum + ': Invalid Q3 value'); return; }
+          if (isNaN(q4) || q4 < 0) { errors.push('Row ' + rowNum + ': Invalid Q4 value'); return; }
+
+          importedRows.push({ projectId, q1, q2, q3, q4 });
+        });
+
+        if (errors.length > 0) {
+          showImportMessage(contentEl, 'Validation errors:\n' + errors.join('\n'), 'red');
+          return;
+        }
+
+        const changes = computeBudgetDiff(importedRows, activeProjects);
+        if (changes.length === 0) {
+          showImportMessage(contentEl, 'No changes detected. All imported values match current budgets.', 'blue');
+          return;
+        }
+
+        showImportPreviewModal(changes, contentEl);
+      } catch (err) {
+        showImportMessage(contentEl, 'Failed to parse Excel file: ' + err.message, 'red');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function showImportMessage(contentEl, message, color) {
+    // Remove any existing import message
+    const existing = contentEl.querySelector('.budget-import-msg');
+    if (existing) existing.remove();
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'budget-import-msg mb-4 p-3 rounded text-sm whitespace-pre-wrap '
+      + (color === 'red' ? 'bg-red-50 text-red-700 border border-red-200'
+        : color === 'blue' ? 'bg-blue-50 text-blue-700 border border-blue-200'
+        : 'bg-green-50 text-green-700 border border-green-200');
+    msgDiv.textContent = message;
+
+    // Insert after button row
+    const btnRow = contentEl.querySelector('div.mb-4.flex.gap-2');
+    if (btnRow && btnRow.nextSibling) {
+      contentEl.insertBefore(msgDiv, btnRow.nextSibling);
+    } else {
+      contentEl.appendChild(msgDiv);
+    }
+
+    // Auto-dismiss after 8 seconds
+    setTimeout(() => { if (msgDiv.parentNode) msgDiv.remove(); }, 8000);
+  }
+
+  function computeBudgetDiff(importedRows, activeProjects) {
+    const projectMap = {};
+    activeProjects.forEach(p => { projectMap[p.id] = p; });
+
+    const changes = [];
+    importedRows.forEach(row => {
+      const project = projectMap[row.projectId];
+      if (!project) return;
+
+      const diffs = {};
+      let hasChanges = false;
+
+      ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
+        const oldVal = Number(project['budget' + q]) || 0;
+        const newVal = row[q.toLowerCase()];
+        if (oldVal !== newVal) {
+          diffs[q] = { old: oldVal, new: newVal };
+          hasChanges = true;
+        }
+      });
+
+      if (hasChanges) {
+        changes.push({
+          projectId: project.id,
+          projectName: project.name,
+          project: project,
+          changes: diffs
+        });
+      }
+    });
+
+    return changes;
+  }
+
+  function showImportPreviewModal(changes, contentEl) {
+    // Full-screen overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50';
+
+    const modal = document.createElement('div');
+    modal.className = 'bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col overflow-hidden';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b';
+    const title = document.createElement('h3');
+    title.className = 'text-lg font-bold text-indigo-800';
+    title.textContent = 'Import Budget Changes (' + changes.length + ' project' + (changes.length !== 1 ? 's' : '') + ')';
+    header.appendChild(title);
+    modal.appendChild(header);
+
+    // Body - scrollable diff table
+    const body = document.createElement('div');
+    body.className = 'p-4 overflow-y-auto flex-1';
+
+    const table = document.createElement('table');
+    table.className = 'w-full text-sm';
+
+    const thead = document.createElement('thead');
+    const thRow = document.createElement('tr');
+    thRow.className = 'border-b text-left text-slate-500';
+    ['Project', 'Q1', 'Q2', 'Q3', 'Q4'].forEach(text => {
+      const th = document.createElement('th');
+      th.className = 'py-2 px-2' + (text !== 'Project' ? ' text-center' : '');
+      th.textContent = text;
+      thRow.appendChild(th);
+    });
+    thead.appendChild(thRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    changes.forEach(change => {
+      const tr = document.createElement('tr');
+      tr.className = 'border-b';
+
+      const nameTd = document.createElement('td');
+      nameTd.className = 'py-2 px-2';
+      nameTd.textContent = change.projectName;
+      tr.appendChild(nameTd);
+
+      ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
+        const td = document.createElement('td');
+        td.className = 'py-2 px-2 text-center';
+
+        if (change.changes[q]) {
+          td.className += ' bg-yellow-50';
+          const oldSpan = document.createElement('span');
+          oldSpan.className = 'line-through text-slate-400 mr-1';
+          oldSpan.textContent = change.changes[q].old;
+          const newSpan = document.createElement('span');
+          newSpan.className = 'text-green-700 font-medium';
+          newSpan.textContent = change.changes[q].new;
+          td.appendChild(oldSpan);
+          td.appendChild(document.createTextNode(' '));
+          td.appendChild(newSpan);
+        } else {
+          const currentVal = Number(change.project['budget' + q]) || 0;
+          td.textContent = currentVal;
+        }
+
+        tr.appendChild(td);
+      });
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    body.appendChild(table);
+    modal.appendChild(body);
+
+    // Footer
+    const footer = document.createElement('div');
+    footer.className = 'p-4 border-t flex justify-end gap-3';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'px-4 py-2 text-slate-600 hover:bg-slate-100 rounded';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => overlay.remove());
+
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700';
+    applyBtn.textContent = 'Apply ' + changes.length + ' Change' + (changes.length !== 1 ? 's' : '');
+    applyBtn.addEventListener('click', () => applyBudgetChanges(changes, contentEl, overlay, applyBtn));
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(applyBtn);
+    modal.appendChild(footer);
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Close on backdrop click
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+  }
+
+  async function applyBudgetChanges(changes, contentEl, overlay, applyBtn) {
+    applyBtn.disabled = true;
+    applyBtn.textContent = 'Saving... (0/' + changes.length + ')';
+
+    const failures = [];
+    for (let i = 0; i < changes.length; i++) {
+      const change = changes[i];
+      const project = change.project;
+      try {
+        const resp = await fetch('/api/UpdateProject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: project.id,
+            name: project.name,
+            color: project.color,
+            isActive: project.isActive,
+            budgetQ1: change.changes.Q1 ? change.changes.Q1.new : (Number(project.budgetQ1) || 0),
+            budgetQ2: change.changes.Q2 ? change.changes.Q2.new : (Number(project.budgetQ2) || 0),
+            budgetQ3: change.changes.Q3 ? change.changes.Q3.new : (Number(project.budgetQ3) || 0),
+            budgetQ4: change.changes.Q4 ? change.changes.Q4.new : (Number(project.budgetQ4) || 0)
+          })
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+      } catch (err) {
+        failures.push(change.projectName + ': ' + err.message);
+      }
+      applyBtn.textContent = 'Saving... (' + (i + 1) + '/' + changes.length + ')';
+    }
+
+    overlay.remove();
+
+    if (failures.length > 0) {
+      showImportMessage(contentEl, 'Saved with ' + failures.length + ' error(s):\n' + failures.join('\n'), 'red');
+    } else {
+      showImportMessage(contentEl, 'Successfully updated ' + changes.length + ' project budget' + (changes.length !== 1 ? 's' : '') + '.', 'green');
+    }
+
+    // Reload the budgets tab to reflect changes
+    await loadBudgetsTab(contentEl);
   }
 
   // ====== USERS TAB ======
