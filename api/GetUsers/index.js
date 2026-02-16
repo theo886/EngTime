@@ -33,6 +33,7 @@ module.exports = async function (context, req) {
             users.push({
                 userId: entity.rowKey,
                 email: entity.email || '',
+                displayName: entity.displayName || '',
                 isAdmin: entity.isAdmin === true,
                 defaultInputMode: entity.defaultInputMode || 'percent',
                 firstSeen: entity.firstSeen || '',

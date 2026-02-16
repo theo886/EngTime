@@ -23,15 +23,19 @@ const MOCK_API = {
       userId: 'dev-user-123',
       userDetails: 'atheodossiou@energyrecovery.com',
       identityProvider: 'aad',
-      userRoles: ['authenticated', 'anonymous']
+      userRoles: ['authenticated', 'anonymous'],
+      claims: [
+        { typ: 'name', val: 'Alexandros Theodossiou' },
+        { typ: 'preferred_username', val: 'atheodossiou@energyrecovery.com' }
+      ]
     }
   },
   '/api/CheckAdmin': { isAdmin: true },
   '/api/GetUserSettings': { defaultInputMode: 'percent' },
   '/api/GetUsers': [
-    { userId: 'dev-user-123', email: 'atheodossiou@energyrecovery.com', isAdmin: true, defaultInputMode: 'percent', firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString() },
-    { userId: 'user-jsmith', email: 'jsmith@energyrecovery.com', isAdmin: false, defaultInputMode: 'percent', firstSeen: '2025-06-01T00:00:00Z', lastSeen: '2026-02-10T00:00:00Z' },
-    { userId: 'user-klee', email: 'klee@energyrecovery.com', isAdmin: false, defaultInputMode: 'hours', firstSeen: '2025-08-15T00:00:00Z', lastSeen: '2026-02-12T00:00:00Z' }
+    { userId: 'dev-user-123', email: 'atheodossiou@energyrecovery.com', displayName: 'Alexandros Theodossiou', isAdmin: true, defaultInputMode: 'percent', firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString() },
+    { userId: 'user-jsmith', email: 'jsmith@energyrecovery.com', displayName: 'John Smith', isAdmin: false, defaultInputMode: 'percent', firstSeen: '2025-06-01T00:00:00Z', lastSeen: '2026-02-10T00:00:00Z' },
+    { userId: 'user-klee', email: 'klee@energyrecovery.com', displayName: 'Karen Lee', isAdmin: false, defaultInputMode: 'hours', firstSeen: '2025-08-15T00:00:00Z', lastSeen: '2026-02-12T00:00:00Z' }
   ],
   '/api/GetProjects': [
     { id: 'CP000022', name: 'General R&D Infrastructure', color: '#3498DB', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
@@ -66,6 +70,7 @@ const MOCK_API = {
     {
       userId: 'dev-user-123',
       userEmail: 'atheodossiou@energyrecovery.com',
+      displayName: 'Alexandros Theodossiou',
       weeks: {
         '2/10/2026 - 2/16/2026': [
           { projectId: 'CP000039', projectName: 'Unapplied Engineering Time', percentage: 15, hours: 6 },
@@ -81,6 +86,7 @@ const MOCK_API = {
     {
       userId: 'user-jsmith',
       userEmail: 'jsmith@energyrecovery.com',
+      displayName: 'John Smith',
       weeks: {
         '2/10/2026 - 2/16/2026': [
           { projectId: 'RD000049', projectName: 'PXG V2.5 Integration', percentage: 60, hours: 24 },
@@ -95,9 +101,9 @@ const MOCK_API = {
       budgetHours: 480, actualHours: 620, budgetQ1: 2, budgetQ2: 2, budgetQ3: 1, budgetQ4: 1,
       isOverBudget: true, overBy: 140,
       userBreakdown: [
-        { userEmail: 'atheodossiou@energyrecovery.com', totalHours: 320 },
-        { userEmail: 'jsmith@energyrecovery.com', totalHours: 200 },
-        { userEmail: 'klee@energyrecovery.com', totalHours: 100 }
+        { userEmail: 'atheodossiou@energyrecovery.com', displayName: 'Alexandros Theodossiou', totalHours: 320 },
+        { userEmail: 'jsmith@energyrecovery.com', displayName: 'John Smith', totalHours: 200 },
+        { userEmail: 'klee@energyrecovery.com', displayName: 'Karen Lee', totalHours: 100 }
       ]
     },
     {
@@ -105,9 +111,9 @@ const MOCK_API = {
       budgetHours: 800, actualHours: 540, budgetQ1: 3, budgetQ2: 3, budgetQ3: 2, budgetQ4: 2,
       isOverBudget: false, overBy: 0,
       userBreakdown: [
-        { userEmail: 'atheodossiou@energyrecovery.com', totalHours: 200 },
-        { userEmail: 'jsmith@energyrecovery.com', totalHours: 180 },
-        { userEmail: 'klee@energyrecovery.com', totalHours: 160 }
+        { userEmail: 'atheodossiou@energyrecovery.com', displayName: 'Alexandros Theodossiou', totalHours: 200 },
+        { userEmail: 'jsmith@energyrecovery.com', displayName: 'John Smith', totalHours: 180 },
+        { userEmail: 'klee@energyrecovery.com', displayName: 'Karen Lee', totalHours: 160 }
       ]
     },
     {
@@ -115,8 +121,8 @@ const MOCK_API = {
       budgetHours: 320, actualHours: 280, budgetQ1: 1, budgetQ2: 1, budgetQ3: 1, budgetQ4: 1,
       isOverBudget: false, overBy: 0,
       userBreakdown: [
-        { userEmail: 'jsmith@energyrecovery.com', totalHours: 160 },
-        { userEmail: 'klee@energyrecovery.com', totalHours: 120 }
+        { userEmail: 'jsmith@energyrecovery.com', displayName: 'John Smith', totalHours: 160 },
+        { userEmail: 'klee@energyrecovery.com', displayName: 'Karen Lee', totalHours: 120 }
       ]
     },
     {
@@ -124,8 +130,8 @@ const MOCK_API = {
       budgetHours: 200, actualHours: 250, budgetQ1: 0.5, budgetQ2: 0.5, budgetQ3: 0.5, budgetQ4: 0.5,
       isOverBudget: true, overBy: 50,
       userBreakdown: [
-        { userEmail: 'atheodossiou@energyrecovery.com', totalHours: 150 },
-        { userEmail: 'klee@energyrecovery.com', totalHours: 100 }
+        { userEmail: 'atheodossiou@energyrecovery.com', displayName: 'Alexandros Theodossiou', totalHours: 150 },
+        { userEmail: 'klee@energyrecovery.com', displayName: 'Karen Lee', totalHours: 100 }
       ]
     }
   ],
@@ -151,6 +157,11 @@ const server = http.createServer((req, res) => {
   }
 
   // Handle mock POST endpoints
+  if (urlPath === '/api/PopulateDisplayNames') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, total: 3, populated: 2, skipped: 1, failed: 0, errors: [] }));
+    return;
+  }
   if (urlPath.startsWith('/api/')) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true }));

@@ -1014,7 +1014,7 @@
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
     headerRow.className = 'border-b text-left text-slate-500';
-    ['Email', 'Admin', 'Last Seen', 'First Seen'].forEach(text => {
+    ['Name', 'Email', 'Admin', 'Last Seen', 'First Seen'].forEach(text => {
       const th = document.createElement('th');
       th.className = 'py-2 px-2';
       th.textContent = text;
@@ -1024,22 +1024,31 @@
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
-    // Sort: admins first, then by email
+    // Sort: admins first, then by displayName/email
     const sortedUsers = [...adminData.users].sort((a, b) => {
       if (a.isAdmin && !b.isAdmin) return -1;
       if (!a.isAdmin && b.isAdmin) return 1;
-      return (a.email || a.userId).localeCompare(b.email || b.userId);
+      return (a.displayName || a.email || a.userId).localeCompare(b.displayName || b.email || b.userId);
     });
 
     sortedUsers.forEach(user => {
       const tr = document.createElement('tr');
       tr.className = 'border-b hover:bg-slate-50';
 
+      // Name
+      const nameTd = document.createElement('td');
+      nameTd.className = 'py-2 px-2 font-medium';
+      nameTd.textContent = user.displayName || user.email || user.userId;
+      if (user.displayName) {
+        nameTd.title = user.email;
+      }
+      tr.appendChild(nameTd);
+
       // Email
       const emailTd = document.createElement('td');
       emailTd.className = 'py-2 px-2';
       const emailSpan = document.createElement('span');
-      emailSpan.className = 'text-sm';
+      emailSpan.className = 'text-sm text-slate-500';
       emailSpan.textContent = user.email || user.userId;
       emailTd.appendChild(emailSpan);
       tr.appendChild(emailTd);
@@ -1125,7 +1134,7 @@
     if (!projResp.ok || !usersResp.ok) throw new Error('Failed to load data');
     const projectsList = await projResp.json();
     const allUsers = (await usersResp.json()).sort((a, b) =>
-      (a.email || a.userId).localeCompare(b.email || b.userId)
+      (a.displayName || a.email || a.userId).localeCompare(b.displayName || b.email || b.userId)
     );
 
     contentEl.textContent = '';
@@ -1149,7 +1158,9 @@
     allUsers.forEach(user => {
       const opt = document.createElement('option');
       opt.value = user.userId;
-      opt.textContent = user.email || user.userId;
+      opt.textContent = user.displayName
+        ? user.displayName + ' (' + (user.email || user.userId) + ')'
+        : (user.email || user.userId);
       opt.dataset.email = user.email || '';
       select.appendChild(opt);
     });
@@ -1864,7 +1875,10 @@
 
           const emailTd = document.createElement('td');
           emailTd.className = 'py-1 px-2';
-          emailTd.textContent = user.userEmail;
+          emailTd.textContent = user.displayName || user.userEmail;
+          if (user.displayName) {
+            emailTd.title = user.userEmail;
+          }
 
           const hoursTd = document.createElement('td');
           hoursTd.className = 'py-1 px-2';

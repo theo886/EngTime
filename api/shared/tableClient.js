@@ -38,7 +38,15 @@ function getUserInfo(req) {
     const encoded = Buffer.from(header, 'base64');
     const decoded = encoded.toString('ascii');
     try {
-        return JSON.parse(decoded);
+        const parsed = JSON.parse(decoded);
+        // Extract display name from Entra ID claims if present
+        if (parsed.claims && Array.isArray(parsed.claims)) {
+            const nameClaim = parsed.claims.find(c => c.typ === 'name');
+            if (nameClaim && nameClaim.val) {
+                parsed.displayName = nameClaim.val;
+            }
+        }
+        return parsed;
     } catch (e) {
         console.error("Error parsing client principal header:", e);
         return null;
@@ -81,12 +89,17 @@ async function ensureUser(req) {
 
         // Check if user exists — if not, set firstSeen and defaults
         try {
-            await usersClient.getEntity("users", clientPrincipal.userId);
+            const existing = await usersClient.getEntity("users", clientPrincipal.userId);
+            // Backfill displayName for existing users who don't have one yet
+            if (!existing.displayName && clientPrincipal.displayName) {
+                entity.displayName = clientPrincipal.displayName;
+            }
         } catch (e) {
             if (e.statusCode === 404) {
                 entity.firstSeen = now;
                 entity.isAdmin = false;
                 entity.defaultInputMode = "percent";
+                entity.displayName = clientPrincipal.displayName || "";
             }
         }
 

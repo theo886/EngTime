@@ -2059,7 +2059,15 @@ document.addEventListener('DOMContentLoaded', function() {
         return null;
       }
       const payload = await response.json();
-      return payload.clientPrincipal;
+      const principal = payload.clientPrincipal;
+      // Extract display name from Entra ID claims if present
+      if (principal && principal.claims && Array.isArray(principal.claims)) {
+        const nameClaim = principal.claims.find(c => c.typ === 'name');
+        if (nameClaim && nameClaim.val) {
+          principal.displayName = nameClaim.val;
+        }
+      }
+      return principal;
     } catch (error) {
       console.error('Error fetching user info:', error);
       return null;
@@ -2226,24 +2234,29 @@ document.addEventListener('DOMContentLoaded', function() {
       userView.classList.remove('hidden');
       // userView.style.display = ''; // REMOVE: Rely on CSS class
       
-      // Get base username (before '@')
-      let baseUsername = userInfo.userId; // Fallback to userId
-      if (userInfo.userDetails) {
-        baseUsername = userInfo.userDetails.includes('@') ? userInfo.userDetails.split('@')[0] : userInfo.userDetails;
+      // Prefer display name from Entra ID claims, fall back to email-derived format
+      if (userInfo.displayName) {
+        userNameSpan.textContent = userInfo.displayName;
+      } else {
+        // Get base username (before '@')
+        let baseUsername = userInfo.userId; // Fallback to userId
+        if (userInfo.userDetails) {
+          baseUsername = userInfo.userDetails.includes('@') ? userInfo.userDetails.split('@')[0] : userInfo.userDetails;
+        }
+
+        // Format username: A.Theodossiou
+        let formattedName = baseUsername; // Default to base username
+        if (baseUsername && baseUsername.length >= 2) {
+            // Capitalize first, add period, capitalize second, add rest
+            formattedName = baseUsername[0].toUpperCase() + '.' + baseUsername[1].toUpperCase() + baseUsername.substring(2);
+        } else if (baseUsername && baseUsername.length === 1) {
+            // Handle single-character names: just capitalize
+            formattedName = baseUsername[0].toUpperCase();
+        }
+        // If baseUsername is empty, formattedName remains empty
+
+        userNameSpan.textContent = formattedName;
       }
-      
-      // Format username: A.Theodossiou
-      let formattedName = baseUsername; // Default to base username
-      if (baseUsername && baseUsername.length >= 2) {
-          // Capitalize first, add period, capitalize second, add rest
-          formattedName = baseUsername[0].toUpperCase() + '.' + baseUsername[1].toUpperCase() + baseUsername.substring(2);
-      } else if (baseUsername && baseUsername.length === 1) {
-          // Handle single-character names: just capitalize
-          formattedName = baseUsername[0].toUpperCase();
-      } 
-      // If baseUsername is empty, formattedName remains empty
-      
-      userNameSpan.textContent = formattedName;
 
       // Show/hide admin link based on admin status
       const adminLink = document.getElementById('admin-link');

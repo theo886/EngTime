@@ -26,6 +26,18 @@ module.exports = async function (context, req) {
     }
 
     try {
+        // Load user display names for enriching user breakdown
+        const usersClient = createTableClient("users");
+        const userDisplayNames = {};
+        const userEntities = usersClient.listEntities({
+            queryOptions: { filter: "PartitionKey eq 'users'" }
+        });
+        for await (const userEntity of userEntities) {
+            if (userEntity.email) {
+                userDisplayNames[userEntity.email.toLowerCase()] = userEntity.displayName || '';
+            }
+        }
+
         // Step 1: Load all projects (includes budget FTE per quarter)
         const projectMap = {};
         const projectEntities = projectsClient.listEntities({
@@ -152,6 +164,7 @@ module.exports = async function (context, req) {
                 overBy: isOverBudget ? Math.round((proj.actualHours - budgetHours) * 10) / 10 : 0,
                 userBreakdown: Object.entries(proj.userBreakdown).map(([email, hours]) => ({
                     userEmail: email,
+                    displayName: userDisplayNames[email.toLowerCase()] || '',
                     totalHours: Math.round(hours * 10) / 10
                 })).sort((a, b) => b.totalHours - a.totalHours)
             };

@@ -67,8 +67,21 @@ module.exports = async function (context, req) {
             });
         }
 
-        // Convert to array for easier consumption
-        const usersArray = Object.values(results);
+        // Look up display names from users table
+        const usersClient = createTableClient("users");
+        const userDisplayNames = {};
+        const userEntities = usersClient.listEntities({
+            queryOptions: { filter: "PartitionKey eq 'users'" }
+        });
+        for await (const userEntity of userEntities) {
+            userDisplayNames[userEntity.rowKey] = userEntity.displayName || '';
+        }
+
+        // Convert to array and enrich with display names
+        const usersArray = Object.values(results).map(user => ({
+            ...user,
+            displayName: userDisplayNames[user.userId] || ''
+        }));
 
         context.res = { status: 200, body: usersArray };
     } catch (err) {
