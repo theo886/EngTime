@@ -1112,21 +1112,28 @@
   // ====== USER TIMESHEETS TAB ======
   async function loadTimesheetsTab(contentEl) {
     contentEl.textContent = '';
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'text-center py-8 text-slate-400';
-    loadingDiv.textContent = 'Loading users...';
-    contentEl.appendChild(loadingDiv);
+    const loading = document.createElement('div');
+    loading.className = 'text-center py-8 text-slate-400';
+    loading.textContent = 'Loading...';
+    contentEl.appendChild(loading);
 
-    const response = await fetch('/api/GetAllUsersTimesheets');
-    if (!response.ok) throw new Error('Failed to load timesheets');
-    adminData.usersTimesheets = await response.json();
+    // Fetch projects (for edit dropdowns) and users in parallel
+    const [projResp, usersResp] = await Promise.all([
+      fetch('/api/GetProjects?includeInactive=false'),
+      fetch('/api/GetUsers')
+    ]);
+    if (!projResp.ok || !usersResp.ok) throw new Error('Failed to load data');
+    const projectsList = await projResp.json();
+    const allUsers = (await usersResp.json()).sort((a, b) =>
+      (a.email || a.userId).localeCompare(b.email || b.userId)
+    );
 
     contentEl.textContent = '';
 
-    if (adminData.usersTimesheets.length === 0) {
+    if (allUsers.length === 0) {
       const emptyDiv = document.createElement('div');
       emptyDiv.className = 'text-center py-8 text-slate-400';
-      emptyDiv.textContent = 'No timesheet data found.';
+      emptyDiv.textContent = 'No users found.';
       contentEl.appendChild(emptyDiv);
       return;
     }
@@ -1134,100 +1141,423 @@
     // User selector
     const selectorRow = document.createElement('div');
     selectorRow.className = 'mb-4 flex gap-3 items-center';
-
     const label = document.createElement('label');
     label.className = 'text-sm font-medium text-slate-700';
     label.textContent = 'User:';
-
     const select = document.createElement('select');
     select.className = 'px-3 py-2 border rounded text-sm flex-1';
-
-    adminData.usersTimesheets.forEach(user => {
+    allUsers.forEach(user => {
       const opt = document.createElement('option');
       opt.value = user.userId;
-      opt.textContent = user.userEmail || user.userId;
+      opt.textContent = user.email || user.userId;
+      opt.dataset.email = user.email || '';
       select.appendChild(opt);
     });
-
     selectorRow.appendChild(label);
     selectorRow.appendChild(select);
     contentEl.appendChild(selectorRow);
+
+    // "New Timesheet" button
+    const newBtn = document.createElement('button');
+    newBtn.className = 'mb-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm';
+    newBtn.textContent = '+ New Timesheet';
+    contentEl.appendChild(newBtn);
 
     // Week view area
     const weekView = document.createElement('div');
     contentEl.appendChild(weekView);
 
-    // Load first user's data
-    select.addEventListener('change', () => renderUserTimesheets(weekView, select.value));
-    renderUserTimesheets(weekView, select.value);
+    // State for current user's timesheets
+    let currentUserData = null;
+
+    async function loadUserData(userId) {
+      weekView.textContent = '';
+      const loadDiv = document.createElement('div');
+      loadDiv.className = 'text-center py-4 text-slate-400';
+      loadDiv.textContent = 'Loading timesheets...';
+      weekView.appendChild(loadDiv);
+
+      try {
+        const resp = await fetch('/api/GetAllUsersTimesheets?userId=' + encodeURIComponent(userId));
+        if (!resp.ok) throw new Error('Failed to load timesheets');
+        const data = await resp.json();
+        currentUserData = data.find(u => u.userId === userId) || { userId, userEmail: '', weeks: {} };
+      } catch (err) {
+        currentUserData = { userId: select.value, userEmail: '', weeks: {} };
+      }
+      renderUserTimesheets(weekView, currentUserData, projectsList, select);
+    }
+
+    select.addEventListener('change', () => loadUserData(select.value));
+
+    newBtn.addEventListener('click', () => {
+      showNewTimesheetForm(weekView, select, currentUserData, projectsList, loadUserData);
+    });
+
+    // Load first user
+    await loadUserData(select.value);
   }
 
-  function renderUserTimesheets(container, userId) {
-    const userData = adminData.usersTimesheets.find(u => u.userId === userId);
-    if (!userData || !userData.weeks) {
-      container.textContent = '';
+  function renderUserTimesheets(container, userData, projectsList, userSelect) {
+    container.textContent = '';
+
+    if (!userData.weeks || Object.keys(userData.weeks).length === 0) {
       const emptyDiv = document.createElement('div');
-      emptyDiv.className = 'text-center py-4 text-slate-400';
-      emptyDiv.textContent = 'No data for this user.';
+      emptyDiv.className = 'text-center py-8 text-slate-400';
+      emptyDiv.textContent = 'No timesheets for this user. Use "+ New Timesheet" to create one.';
       container.appendChild(emptyDiv);
       return;
     }
 
-    container.textContent = '';
-
+    // Sort weeks most recent first
     const weeks = Object.keys(userData.weeks).sort((a, b) => {
       const parseStart = w => {
         const parts = w.split(' - ')[0].split('/');
         return new Date(parts[2], parts[0] - 1, parts[1]);
       };
-      return parseStart(b) - parseStart(a); // Most recent first
+      return parseStart(b) - parseStart(a);
     });
 
     weeks.forEach(weekKey => {
-      const entries = userData.weeks[weekKey];
+      const weekEntries = userData.weeks[weekKey];
       const weekSection = document.createElement('div');
       weekSection.className = 'mb-4 border rounded-lg overflow-hidden';
 
+      // Header with week label, total, and Edit button
       const weekHeader = document.createElement('div');
-      weekHeader.className = 'px-4 py-2 bg-slate-50 font-medium text-sm text-slate-700 flex justify-between items-center cursor-pointer';
+      weekHeader.className = 'px-4 py-2 bg-slate-50 font-medium text-sm text-slate-700 flex justify-between items-center';
 
       const weekLabel = document.createElement('span');
+      weekLabel.className = 'cursor-pointer flex-1';
       weekLabel.textContent = 'Week of ' + weekKey;
 
-      const total = entries.reduce((sum, e) => sum + (Number(e.percentage) || 0), 0);
-      const totalLabel = document.createElement('span');
-      totalLabel.className = (total === 100 ? 'text-green-600' : 'text-red-600') + ' text-xs';
-      totalLabel.textContent = total + '%';
+      const total = weekEntries.reduce((sum, e) => sum + (Number(e.percentage) || 0), 0);
+      const totalBadge = document.createElement('span');
+      totalBadge.className = (total === 100 ? 'text-green-600' : 'text-red-600') + ' text-xs mr-3';
+      totalBadge.textContent = total + '%';
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'px-3 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200';
+      editBtn.textContent = 'Edit';
 
       weekHeader.appendChild(weekLabel);
-      weekHeader.appendChild(totalLabel);
+      weekHeader.appendChild(totalBadge);
+      weekHeader.appendChild(editBtn);
 
+      // Body (read-only by default, toggled by clicking week label)
       const weekBody = document.createElement('div');
       weekBody.className = 'px-4 py-2 hidden';
+      renderReadOnlyEntries(weekBody, weekEntries);
 
-      entries.forEach(entry => {
-        const row = document.createElement('div');
-        row.className = 'flex justify-between py-1 text-sm border-b last:border-0';
+      weekLabel.addEventListener('click', () => weekBody.classList.toggle('hidden'));
 
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = entry.projectName || entry.projectId;
-        const pctSpan = document.createElement('span');
-        pctSpan.className = 'text-slate-500';
-        pctSpan.textContent = entry.percentage + '%';
-
-        row.appendChild(nameSpan);
-        row.appendChild(pctSpan);
-        weekBody.appendChild(row);
-      });
-
-      weekHeader.addEventListener('click', () => {
-        weekBody.classList.toggle('hidden');
+      // Edit button handler
+      editBtn.addEventListener('click', () => {
+        weekBody.classList.remove('hidden');
+        showEditForm(weekBody, weekKey, weekEntries, userData, projectsList, userSelect, container);
       });
 
       weekSection.appendChild(weekHeader);
       weekSection.appendChild(weekBody);
       container.appendChild(weekSection);
     });
+  }
+
+  function renderReadOnlyEntries(container, entries) {
+    container.textContent = '';
+    entries.forEach(entry => {
+      const row = document.createElement('div');
+      row.className = 'flex justify-between py-1 text-sm border-b last:border-0';
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = entry.projectName || entry.projectId;
+      const pctSpan = document.createElement('span');
+      pctSpan.className = 'text-slate-500';
+      pctSpan.textContent = entry.percentage + '%';
+      row.appendChild(nameSpan);
+      row.appendChild(pctSpan);
+      container.appendChild(row);
+    });
+  }
+
+  function showEditForm(weekBody, weekKey, existingEntries, userData, projectsList, userSelect, parentContainer) {
+    weekBody.textContent = '';
+
+    // Local mutable entries state
+    let editEntries = existingEntries.map((e, i) => ({
+      id: Date.now() + i,
+      projectId: e.projectId,
+      percentage: Number(e.percentage) || 0
+    }));
+
+    const entriesContainer = document.createElement('div');
+    const totalRow = document.createElement('div');
+    totalRow.className = 'flex justify-between items-center py-2 text-sm font-medium';
+    const totalLabel = document.createElement('span');
+    totalLabel.textContent = 'Total:';
+    const totalValue = document.createElement('span');
+    totalRow.appendChild(totalLabel);
+    totalRow.appendChild(totalValue);
+
+    // Action buttons (declared early so updateTotal can reference saveBtn)
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Save';
+
+    function updateTotal() {
+      const sum = editEntries.reduce((s, e) => s + e.percentage, 0);
+      totalValue.textContent = sum + '%';
+      totalValue.className = sum === 100 ? 'text-green-600 font-bold' : 'text-red-600 font-bold';
+      const hasEmptyProject = editEntries.some(e => !e.projectId);
+      const projectIds = editEntries.filter(e => e.projectId).map(e => e.projectId);
+      const hasDuplicates = new Set(projectIds).size !== projectIds.length;
+      saveBtn.disabled = sum !== 100 || hasEmptyProject || hasDuplicates || editEntries.length === 0;
+      saveBtn.className = saveBtn.disabled
+        ? 'px-4 py-1.5 bg-slate-300 text-white rounded text-sm cursor-not-allowed'
+        : 'px-4 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm';
+    }
+
+    function renderEditRows() {
+      entriesContainer.textContent = '';
+      editEntries.forEach(entry => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2 py-1.5 border-b';
+
+        // Color dot
+        const colorDot = document.createElement('span');
+        colorDot.className = 'w-3 h-3 rounded-full flex-shrink-0';
+        const proj = projectsList.find(p => p.id === entry.projectId);
+        colorDot.style.backgroundColor = proj ? proj.color : '#ccc';
+
+        // Project select
+        const sel = document.createElement('select');
+        sel.className = 'flex-1 px-2 py-1 border rounded text-sm';
+        const emptyOpt = document.createElement('option');
+        emptyOpt.value = '';
+        emptyOpt.textContent = '-- Select Project --';
+        sel.appendChild(emptyOpt);
+        projectsList.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.id + ' - ' + p.name;
+          if (p.id === entry.projectId) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        sel.addEventListener('change', () => {
+          entry.projectId = sel.value;
+          const p = projectsList.find(x => x.id === sel.value);
+          colorDot.style.backgroundColor = p ? p.color : '#ccc';
+          updateTotal();
+        });
+
+        // Percentage input
+        const pctInput = document.createElement('input');
+        pctInput.type = 'number';
+        pctInput.min = '0';
+        pctInput.max = '100';
+        pctInput.value = entry.percentage;
+        pctInput.className = 'w-20 px-2 py-1 border rounded text-sm text-right';
+        pctInput.addEventListener('input', () => {
+          entry.percentage = parseInt(pctInput.value) || 0;
+          updateTotal();
+        });
+
+        const pctLabel = document.createElement('span');
+        pctLabel.className = 'text-xs text-slate-400';
+        pctLabel.textContent = '%';
+
+        // Remove button
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'text-red-400 hover:text-red-600 text-lg leading-none px-1';
+        removeBtn.textContent = '\u00D7';
+        removeBtn.addEventListener('click', () => {
+          editEntries = editEntries.filter(e => e.id !== entry.id);
+          renderEditRows();
+          updateTotal();
+        });
+
+        row.appendChild(colorDot);
+        row.appendChild(sel);
+        row.appendChild(pctInput);
+        row.appendChild(pctLabel);
+        row.appendChild(removeBtn);
+        entriesContainer.appendChild(row);
+      });
+    }
+
+    // Add Project button
+    const addBtn = document.createElement('button');
+    addBtn.className = 'mt-2 px-3 py-1 text-xs text-indigo-600 border border-dashed border-indigo-300 rounded hover:bg-indigo-50 w-full';
+    addBtn.textContent = '+ Add Project';
+    addBtn.addEventListener('click', () => {
+      editEntries.push({ id: Date.now(), projectId: '', percentage: 0 });
+      renderEditRows();
+      updateTotal();
+    });
+
+    // Action buttons row
+    const actionRow = document.createElement('div');
+    actionRow.className = 'flex gap-2 mt-3 pt-2 border-t';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'px-4 py-1.5 text-slate-600 hover:bg-slate-100 rounded text-sm';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => {
+      renderReadOnlyEntries(weekBody, existingEntries);
+    });
+
+    const errorEl = document.createElement('div');
+    errorEl.className = 'mt-2 text-red-500 text-xs hidden';
+
+    saveBtn.addEventListener('click', async () => {
+      try {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+        errorEl.classList.add('hidden');
+
+        const selectedOpt = userSelect.options[userSelect.selectedIndex];
+        const resp = await fetch('/api/SaveTimeAllocationForUser', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetUserId: userSelect.value,
+            targetUserEmail: selectedOpt.dataset.email || '',
+            week: weekKey,
+            WeekStartDate: weekKey.split(' - ')[0],
+            entries: editEntries.filter(e => e.projectId).map(e => ({
+              projectId: e.projectId,
+              projectName: projectsList.find(p => p.id === e.projectId)?.name || 'Unknown',
+              percentage: e.percentage
+            }))
+          })
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+
+        // Update local data and re-render
+        userData.weeks[weekKey] = editEntries.filter(e => e.projectId).map(e => ({
+          projectId: e.projectId,
+          projectName: projectsList.find(p => p.id === e.projectId)?.name || 'Unknown',
+          percentage: e.percentage,
+          hours: parseFloat((e.percentage * 0.4).toFixed(1))
+        }));
+        renderUserTimesheets(parentContainer, userData, projectsList, userSelect);
+      } catch (err) {
+        errorEl.textContent = 'Error: ' + err.message;
+        errorEl.classList.remove('hidden');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+      }
+    });
+
+    actionRow.appendChild(saveBtn);
+    actionRow.appendChild(cancelBtn);
+
+    weekBody.appendChild(entriesContainer);
+    weekBody.appendChild(addBtn);
+    weekBody.appendChild(totalRow);
+    weekBody.appendChild(actionRow);
+    weekBody.appendChild(errorEl);
+
+    renderEditRows();
+    updateTotal();
+  }
+
+  function showNewTimesheetForm(weekView, userSelect, currentUserData, projectsList, reloadFn) {
+    // Toggle: remove existing form if open
+    const existing = document.getElementById('new-timesheet-form');
+    if (existing) { existing.remove(); return; }
+
+    const form = document.createElement('div');
+    form.id = 'new-timesheet-form';
+    form.className = 'mb-4 p-4 border-2 border-dashed border-indigo-300 rounded-lg bg-indigo-50';
+
+    const title = document.createElement('h4');
+    title.className = 'font-medium text-sm text-indigo-800 mb-3';
+    title.textContent = 'New Timesheet';
+
+    // Week picker: date input that snaps to Monday
+    const dateRow = document.createElement('div');
+    dateRow.className = 'flex items-center gap-2 mb-3';
+    const dateLabel = document.createElement('label');
+    dateLabel.className = 'text-sm text-slate-600';
+    dateLabel.textContent = 'Week starting:';
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.className = 'px-2 py-1 border rounded text-sm';
+    // Default to current week's Monday
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+    dateInput.value = monday.toISOString().split('T')[0];
+
+    const weekDisplay = document.createElement('span');
+    weekDisplay.className = 'text-xs text-slate-500';
+
+    function updateWeekDisplay() {
+      const d = new Date(dateInput.value + 'T00:00:00');
+      // Snap to Monday
+      const day = d.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      d.setDate(d.getDate() + diff);
+      const sun = new Date(d);
+      sun.setDate(d.getDate() + 6);
+      const fmt = dt => (dt.getMonth() + 1) + '/' + dt.getDate() + '/' + dt.getFullYear();
+      weekDisplay.textContent = fmt(d) + ' - ' + fmt(sun);
+    }
+    dateInput.addEventListener('change', updateWeekDisplay);
+    updateWeekDisplay();
+
+    dateRow.appendChild(dateLabel);
+    dateRow.appendChild(dateInput);
+    dateRow.appendChild(weekDisplay);
+
+    // Buttons
+    const btnRow = document.createElement('div');
+    btnRow.className = 'flex gap-2';
+    const createBtn = document.createElement('button');
+    createBtn.className = 'px-4 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700';
+    createBtn.textContent = 'Create';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'px-4 py-1.5 text-slate-600 hover:bg-slate-100 rounded text-sm';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => form.remove());
+
+    const errorEl = document.createElement('div');
+    errorEl.className = 'mt-2 text-red-500 text-xs hidden';
+
+    createBtn.addEventListener('click', () => {
+      const weekKey = weekDisplay.textContent;
+      if (currentUserData && currentUserData.weeks && currentUserData.weeks[weekKey]) {
+        errorEl.textContent = 'This week already exists. Use the Edit button on the existing week.';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      // Create empty week and switch to edit mode
+      if (!currentUserData.weeks) currentUserData.weeks = {};
+      currentUserData.weeks[weekKey] = [];
+      form.remove();
+      renderUserTimesheets(weekView, currentUserData, projectsList, userSelect);
+      // Auto-open edit on the new week
+      const editBtns = weekView.querySelectorAll('button');
+      for (const btn of editBtns) {
+        if (btn.textContent === 'Edit') {
+          const section = btn.closest('.mb-4');
+          if (section && section.querySelector('span') && section.querySelector('span').textContent.includes(weekKey)) {
+            btn.click();
+            break;
+          }
+        }
+      }
+    });
+
+    btnRow.appendChild(createBtn);
+    btnRow.appendChild(cancelBtn);
+
+    form.appendChild(title);
+    form.appendChild(dateRow);
+    form.appendChild(btnRow);
+    form.appendChild(errorEl);
+
+    weekView.insertBefore(form, weekView.firstChild);
   }
   // ====== ANALYTICS TAB ======
 
