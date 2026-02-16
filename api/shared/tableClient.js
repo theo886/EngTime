@@ -37,17 +37,54 @@ function getUserInfo(req) {
 }
 
 /**
- * Checks if the given userId is in the admins table.
+ * Checks if the given userId has isAdmin=true in the users table.
  */
 async function isAdmin(userId) {
     try {
-        const adminsClient = createTableClient("admins");
-        const entity = await adminsClient.getEntity("admins", userId);
-        return !!entity;
+        const usersClient = createTableClient("users");
+        const entity = await usersClient.getEntity("users", userId);
+        return entity.isAdmin === true;
     } catch (e) {
-        // 404 means not an admin, any other error we treat as not admin
+        // 404 means user not found, treat as not admin
         return false;
     }
 }
 
-module.exports = { createTableClient, getUserInfo, isAdmin };
+/**
+ * Ensures a user record exists in the users table.
+ * Creates on first login, updates lastSeen on subsequent requests.
+ * Uses Merge mode so it won't overwrite isAdmin or defaultInputMode.
+ */
+async function ensureUser(req) {
+    const clientPrincipal = getUserInfo(req);
+    if (!clientPrincipal || !clientPrincipal.userId) return;
+
+    try {
+        const usersClient = createTableClient("users");
+        const now = new Date();
+        const entity = {
+            partitionKey: "users",
+            rowKey: clientPrincipal.userId,
+            email: clientPrincipal.userDetails || "",
+            lastSeen: now
+        };
+
+        // Check if user exists — if not, set firstSeen and defaults
+        try {
+            await usersClient.getEntity("users", clientPrincipal.userId);
+        } catch (e) {
+            if (e.statusCode === 404) {
+                entity.firstSeen = now;
+                entity.isAdmin = false;
+                entity.defaultInputMode = "percent";
+            }
+        }
+
+        await usersClient.upsertEntity(entity, "Merge");
+    } catch (e) {
+        // Non-fatal — don't block the request if user tracking fails
+        console.error("ensureUser error:", e.message);
+    }
+}
+
+module.exports = { createTableClient, getUserInfo, isAdmin, ensureUser };

@@ -1,4 +1,4 @@
-const { createTableClient, getUserInfo } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, ensureUser } = require("../shared/tableClient");
 const axios = require('axios');
 
 module.exports = async function (context, req) {
@@ -12,6 +12,8 @@ module.exports = async function (context, req) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
+
+    await ensureUser(req);
 
     const userId = clientPrincipal.userId;
     const { week, userEmail, WeekStartDate, entries } = req.body;

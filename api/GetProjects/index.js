@@ -1,7 +1,9 @@
-const { createTableClient } = require("../shared/tableClient");
+const { createTableClient, ensureUser } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('GetProjects function processing request.');
+
+    await ensureUser(req);
 
     const tableClient = createTableClient("projects");
 
@@ -25,6 +27,10 @@ module.exports = async function (context, req) {
                 code: entity.code || '',
                 color: entity.color || '#808080',
                 isActive: entity.isActive !== false,
+                budgetQ1: entity.budgetQ1 || 0,
+                budgetQ2: entity.budgetQ2 || 0,
+                budgetQ3: entity.budgetQ3 || 0,
+                budgetQ4: entity.budgetQ4 || 0,
                 createdAt: entity.createdAt || '',
                 updatedAt: entity.updatedAt || ''
             });

@@ -4,8 +4,7 @@
 (function() {
   let adminData = {
     projects: [],
-    budgets: [],
-    admins: [],
+    users: [],
     usersTimesheets: [],
     activeTab: 'projects'
   };
@@ -52,7 +51,7 @@
     const tabs = [
       { id: 'projects', label: 'Projects' },
       { id: 'budgets', label: 'Budgets' },
-      { id: 'admins', label: 'Admins' },
+      { id: 'users', label: 'Users' },
       { id: 'timesheets', label: 'User Timesheets' },
       { id: 'analytics', label: 'Analytics' }
     ];
@@ -97,7 +96,7 @@
       switch (tab) {
         case 'projects': await loadProjectsTab(contentEl); break;
         case 'budgets': await loadBudgetsTab(contentEl); break;
-        case 'admins': await loadAdminsTab(contentEl); break;
+        case 'users': await loadUsersTab(contentEl); break;
         case 'timesheets': await loadTimesheetsTab(contentEl); break;
         case 'analytics': await loadAnalyticsTab(contentEl); break;
       }
@@ -353,21 +352,17 @@
 
   // ====== BUDGETS TAB ======
   async function loadBudgetsTab(contentEl) {
-    const [budgetsResp, projectsResp] = await Promise.all([
-      fetch('/api/GetProjectBudgets'),
-      fetch('/api/GetProjects?includeInactive=true')
-    ]);
-    if (!budgetsResp.ok) throw new Error('Failed to load budgets');
-    if (!projectsResp.ok) throw new Error('Failed to load projects');
-
-    const budgets = await budgetsResp.json();
-    const projectsList = await projectsResp.json();
-
-    // Build a map of budgets by projectId
-    const budgetMap = {};
-    budgets.forEach(b => { budgetMap[b.projectId] = b; });
+    const response = await fetch('/api/GetProjects?includeInactive=true');
+    if (!response.ok) throw new Error('Failed to load projects');
+    const projectsList = await response.json();
 
     contentEl.textContent = '';
+
+    // Description
+    const desc = document.createElement('p');
+    desc.className = 'text-sm text-slate-500 mb-4';
+    desc.textContent = 'Set FTE (Full-Time Engineer) budget per quarter. 1 FTE = 40 hrs/week.';
+    contentEl.appendChild(desc);
 
     const table = document.createElement('table');
     table.className = 'w-full text-sm';
@@ -376,7 +371,136 @@
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
     headerRow.className = 'border-b text-left text-slate-500';
-    ['Project', 'Budget Hours', 'Period Start', 'Period End', 'Actions'].forEach(text => {
+    ['Project', 'Q1', 'Q2', 'Q3', 'Q4', 'Total FTE', ''].forEach(text => {
+      const th = document.createElement('th');
+      th.className = 'py-2 px-2' + (text !== 'Project' && text !== '' ? ' text-center' : '');
+      th.textContent = text;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    projectsList.filter(p => p.isActive).forEach(project => {
+      const tr = document.createElement('tr');
+      tr.className = 'border-b hover:bg-slate-50';
+
+      const nameTd = document.createElement('td');
+      nameTd.className = 'py-2 px-2';
+      nameTd.textContent = project.name;
+      tr.appendChild(nameTd);
+
+      // Q1-Q4 inputs
+      const inputs = {};
+      ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
+        const td = document.createElement('td');
+        td.className = 'py-2 px-1 text-center';
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '0';
+        input.step = '0.1';
+        input.className = 'w-16 px-1 py-1 border rounded text-sm text-center';
+        input.value = project['budget' + q] || '';
+        input.placeholder = '0';
+        inputs[q] = input;
+        td.appendChild(input);
+        tr.appendChild(td);
+      });
+
+      // Total FTE (read-only computed)
+      const totalTd = document.createElement('td');
+      totalTd.className = 'py-2 px-2 text-center font-medium';
+      const updateTotal = () => {
+        const sum = ['Q1','Q2','Q3','Q4'].reduce((s, q) => s + (Number(inputs[q].value) || 0), 0);
+        totalTd.textContent = sum % 1 === 0 ? sum : sum.toFixed(1);
+      };
+      updateTotal();
+      Object.values(inputs).forEach(inp => inp.addEventListener('input', updateTotal));
+      tr.appendChild(totalTd);
+
+      // Save button
+      const actionsTd = document.createElement('td');
+      actionsTd.className = 'py-2 px-2';
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'px-3 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700';
+      saveBtn.textContent = 'Save';
+      saveBtn.addEventListener('click', async () => {
+        try {
+          saveBtn.textContent = '...';
+          saveBtn.disabled = true;
+          const resp = await fetch('/api/UpdateProject', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectId: project.id,
+              code: project.code,
+              name: project.name,
+              color: project.color,
+              isActive: project.isActive,
+              budgetQ1: Number(inputs.Q1.value) || 0,
+              budgetQ2: Number(inputs.Q2.value) || 0,
+              budgetQ3: Number(inputs.Q3.value) || 0,
+              budgetQ4: Number(inputs.Q4.value) || 0
+            })
+          });
+          if (!resp.ok) throw new Error(await resp.text());
+          saveBtn.textContent = 'Saved!';
+          saveBtn.className = 'px-3 py-1 bg-green-600 text-white rounded text-xs';
+          setTimeout(() => {
+            saveBtn.textContent = 'Save';
+            saveBtn.className = 'px-3 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700';
+            saveBtn.disabled = false;
+          }, 1500);
+        } catch (err) {
+          saveBtn.textContent = 'Error';
+          saveBtn.className = 'px-3 py-1 bg-red-600 text-white rounded text-xs';
+          console.error('Error saving budget:', err);
+          setTimeout(() => {
+            saveBtn.textContent = 'Save';
+            saveBtn.className = 'px-3 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700';
+            saveBtn.disabled = false;
+          }, 2000);
+        }
+      });
+      actionsTd.appendChild(saveBtn);
+      tr.appendChild(actionsTd);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    contentEl.appendChild(table);
+  }
+
+  // ====== USERS TAB ======
+  async function loadUsersTab(contentEl) {
+    const response = await fetch('/api/GetUsers');
+    if (!response.ok) throw new Error('Failed to load users');
+    adminData.users = await response.json();
+
+    contentEl.textContent = '';
+
+    // Description
+    const desc = document.createElement('p');
+    desc.className = 'text-sm text-slate-500 mb-4';
+    desc.textContent = 'Users appear automatically after their first login. Toggle admin access below.';
+    contentEl.appendChild(desc);
+
+    if (adminData.users.length === 0) {
+      const emptyDiv = document.createElement('div');
+      emptyDiv.className = 'text-center py-8 text-slate-400';
+      emptyDiv.textContent = 'No users found yet.';
+      contentEl.appendChild(emptyDiv);
+      return;
+    }
+
+    // Users table
+    const table = document.createElement('table');
+    table.className = 'w-full text-sm';
+
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    headerRow.className = 'border-b text-left text-slate-500';
+    ['Email', 'Admin', 'Last Seen', 'First Seen'].forEach(text => {
       const th = document.createElement('th');
       th.className = 'py-2 px-2';
       th.textContent = text;
@@ -386,178 +510,89 @@
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
-    projectsList.filter(p => p.isActive).forEach(project => {
-      const budget = budgetMap[project.id] || {};
+    // Sort: admins first, then by email
+    const sortedUsers = [...adminData.users].sort((a, b) => {
+      if (a.isAdmin && !b.isAdmin) return -1;
+      if (!a.isAdmin && b.isAdmin) return 1;
+      return (a.email || a.userId).localeCompare(b.email || b.userId);
+    });
+
+    sortedUsers.forEach(user => {
       const tr = document.createElement('tr');
       tr.className = 'border-b hover:bg-slate-50';
 
-      const nameTd = document.createElement('td');
-      nameTd.className = 'py-2 px-2';
-      nameTd.textContent = project.name;
+      // Email
+      const emailTd = document.createElement('td');
+      emailTd.className = 'py-2 px-2';
+      const emailSpan = document.createElement('span');
+      emailSpan.className = 'text-sm';
+      emailSpan.textContent = user.email || user.userId;
+      emailTd.appendChild(emailSpan);
+      tr.appendChild(emailTd);
 
-      const hoursTd = document.createElement('td');
-      hoursTd.className = 'py-2 px-2';
-      const hoursInput = document.createElement('input');
-      hoursInput.type = 'number';
-      hoursInput.min = '0';
-      hoursInput.className = 'w-20 px-2 py-1 border rounded text-sm text-center';
-      hoursInput.value = budget.budgetHours || '';
+      // Admin toggle
+      const adminTd = document.createElement('td');
+      adminTd.className = 'py-2 px-2';
+      const toggleLabel = document.createElement('label');
+      toggleLabel.className = 'relative inline-flex items-center cursor-pointer';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = user.isAdmin;
+      checkbox.className = 'sr-only peer';
+      const toggleSlider = document.createElement('div');
+      toggleSlider.className = 'w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600';
 
-      const startTd = document.createElement('td');
-      startTd.className = 'py-2 px-2';
-      const startInput = document.createElement('input');
-      startInput.type = 'date';
-      startInput.className = 'px-2 py-1 border rounded text-sm';
-      startInput.value = budget.budgetPeriodStart || '';
-
-      const endTd = document.createElement('td');
-      endTd.className = 'py-2 px-2';
-      const endInput = document.createElement('input');
-      endInput.type = 'date';
-      endInput.className = 'px-2 py-1 border rounded text-sm';
-      endInput.value = budget.budgetPeriodEnd || '';
-
-      const actionsTd = document.createElement('td');
-      actionsTd.className = 'py-2 px-2';
-      const saveBtn = document.createElement('button');
-      saveBtn.className = 'text-indigo-600 hover:text-indigo-800 text-xs';
-      saveBtn.textContent = 'Save';
-      saveBtn.addEventListener('click', async () => {
+      checkbox.addEventListener('change', async () => {
         try {
-          saveBtn.textContent = '...';
-          const resp = await fetch('/api/SaveProjectBudget', {
+          checkbox.disabled = true;
+          const resp = await fetch('/api/UpdateUser', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              projectId: project.id,
-              budgetHours: Number(hoursInput.value) || 0,
-              budgetPeriodStart: startInput.value,
-              budgetPeriodEnd: endInput.value
-            })
-          });
-          if (!resp.ok) throw new Error(await resp.text());
-          saveBtn.textContent = 'Saved!';
-          setTimeout(() => { saveBtn.textContent = 'Save'; }, 1500);
-        } catch (err) {
-          saveBtn.textContent = 'Error';
-          console.error('Error saving budget:', err);
-          setTimeout(() => { saveBtn.textContent = 'Save'; }, 2000);
-        }
-      });
-
-      hoursTd.appendChild(hoursInput);
-      startTd.appendChild(startInput);
-      endTd.appendChild(endInput);
-      actionsTd.appendChild(saveBtn);
-
-      tr.appendChild(nameTd);
-      tr.appendChild(hoursTd);
-      tr.appendChild(startTd);
-      tr.appendChild(endTd);
-      tr.appendChild(actionsTd);
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    contentEl.appendChild(table);
-  }
-
-  // ====== ADMINS TAB ======
-  async function loadAdminsTab(contentEl) {
-    const response = await fetch('/api/GetAdmins');
-    if (!response.ok) throw new Error('Failed to load admins');
-    adminData.admins = await response.json();
-
-    contentEl.textContent = '';
-
-    // Add admin form
-    const addForm = document.createElement('div');
-    addForm.className = 'mb-4 flex gap-2 items-end';
-
-    const userIdInput = document.createElement('input');
-    userIdInput.type = 'text';
-    userIdInput.placeholder = 'User ID';
-    userIdInput.className = 'px-3 py-2 border rounded text-sm flex-1';
-
-    const emailInput = document.createElement('input');
-    emailInput.type = 'email';
-    emailInput.placeholder = 'Email (optional)';
-    emailInput.className = 'px-3 py-2 border rounded text-sm flex-1';
-
-    const addBtn = document.createElement('button');
-    addBtn.className = 'px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700';
-    addBtn.textContent = 'Add Admin';
-    addBtn.addEventListener('click', async () => {
-      const userId = userIdInput.value.trim();
-      if (!userId) return;
-      try {
-        const resp = await fetch('/api/UpdateAdmins', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'add', userId, userEmail: emailInput.value.trim() })
-        });
-        if (!resp.ok) throw new Error(await resp.text());
-        userIdInput.value = '';
-        emailInput.value = '';
-        await loadAdminsTab(contentEl);
-      } catch (err) {
-        console.error('Error adding admin:', err);
-      }
-    });
-
-    addForm.appendChild(userIdInput);
-    addForm.appendChild(emailInput);
-    addForm.appendChild(addBtn);
-    contentEl.appendChild(addForm);
-
-    // Admin list
-    const list = document.createElement('div');
-    list.className = 'space-y-2';
-
-    adminData.admins.forEach(admin => {
-      const row = document.createElement('div');
-      row.className = 'flex items-center justify-between p-3 border rounded';
-
-      const info = document.createElement('div');
-      const nameEl = document.createElement('span');
-      nameEl.className = 'font-medium text-sm';
-      nameEl.textContent = admin.userEmail || admin.userId;
-      const idEl = document.createElement('span');
-      idEl.className = 'text-xs text-slate-400 ml-2';
-      idEl.textContent = admin.userId;
-      info.appendChild(nameEl);
-      info.appendChild(idEl);
-
-      const removeBtn = document.createElement('button');
-      removeBtn.className = 'text-red-500 hover:text-red-700 text-xs';
-      removeBtn.textContent = 'Remove';
-      removeBtn.addEventListener('click', async () => {
-        try {
-          const resp = await fetch('/api/UpdateAdmins', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'remove', userId: admin.userId })
+            body: JSON.stringify({ action: 'toggleAdmin', userId: user.userId })
           });
           if (!resp.ok) {
             const errText = await resp.text();
-            if (errText.includes('Cannot remove yourself')) {
-              removeBtn.textContent = "Can't remove self";
-              setTimeout(() => { removeBtn.textContent = 'Remove'; }, 2000);
-              return;
+            checkbox.checked = user.isAdmin; // revert
+            if (errText.includes('Cannot toggle your own')) {
+              const note = document.createElement('span');
+              note.className = 'ml-2 text-xs text-red-500';
+              note.textContent = "(Can't change self)";
+              adminTd.appendChild(note);
+              setTimeout(() => note.remove(), 2000);
             }
-            throw new Error(errText);
+          } else {
+            user.isAdmin = !user.isAdmin;
           }
-          await loadAdminsTab(contentEl);
+          checkbox.disabled = false;
         } catch (err) {
-          console.error('Error removing admin:', err);
+          checkbox.checked = user.isAdmin; // revert
+          checkbox.disabled = false;
+          console.error('Error toggling admin:', err);
         }
       });
 
-      row.appendChild(info);
-      row.appendChild(removeBtn);
-      list.appendChild(row);
+      toggleLabel.appendChild(checkbox);
+      toggleLabel.appendChild(toggleSlider);
+      adminTd.appendChild(toggleLabel);
+      tr.appendChild(adminTd);
+
+      // Last seen
+      const lastSeenTd = document.createElement('td');
+      lastSeenTd.className = 'py-2 px-2 text-xs text-slate-400';
+      lastSeenTd.textContent = user.lastSeen ? new Date(user.lastSeen).toLocaleDateString() : '-';
+      tr.appendChild(lastSeenTd);
+
+      // First seen
+      const firstSeenTd = document.createElement('td');
+      firstSeenTd.className = 'py-2 px-2 text-xs text-slate-400';
+      firstSeenTd.textContent = user.firstSeen ? new Date(user.firstSeen).toLocaleDateString() : '-';
+      tr.appendChild(firstSeenTd);
+
+      tbody.appendChild(tr);
     });
 
-    contentEl.appendChild(list);
+    table.appendChild(tbody);
+    contentEl.appendChild(table);
   }
 
   // ====== USER TIMESHEETS TAB ======

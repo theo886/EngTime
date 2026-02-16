@@ -1,15 +1,15 @@
-const { createTableClient, getUserInfo } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, ensureUser } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('SaveUserSettings function processing request.');
-
-    const tableClient = createTableClient("usersettings");
 
     const clientPrincipal = getUserInfo(req);
     if (!clientPrincipal || !clientPrincipal.userId) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
+
+    await ensureUser(req);
 
     const userId = clientPrincipal.userId;
     const { defaultInputMode } = req.body || {};
@@ -22,14 +22,14 @@ module.exports = async function (context, req) {
     }
 
     try {
+        const usersClient = createTableClient("users");
         const entity = {
-            partitionKey: "settings",
+            partitionKey: "users",
             rowKey: userId,
-            defaultInputMode: defaultInputMode,
-            updatedAt: new Date()
+            defaultInputMode: defaultInputMode
         };
 
-        await tableClient.upsertEntity(entity, "Replace");
+        await usersClient.upsertEntity(entity, "Merge");
 
         context.res = {
             status: 200,

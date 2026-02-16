@@ -27,12 +27,13 @@ const MOCK_API = {
     }
   },
   '/api/CheckAdmin': { isAdmin: true },
-  '/api/GetUserSettings': { inputMode: 'percent' },
-  '/api/GetAdmins': { admins: ['atheodossiou@example.com'] },
+  '/api/GetUserSettings': { defaultInputMode: 'percent' },
+  '/api/GetUsers': [
+    { userId: 'dev-user-123', email: 'atheodossiou@example.com', isAdmin: true, defaultInputMode: 'percent', firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString() }
+  ],
   '/api/GetAllTimeAllocations': [],
   '/api/GetAllUsersTimesheets': [],
-  '/api/GetProjectAnalytics': { projects: [], summary: {} },
-  '/api/GetProjectBudgets': [],
+  '/api/GetProjectAnalytics': [],
 };
 
 const server = http.createServer((req, res) => {

@@ -1,5 +1,5 @@
 /**
- * Seed script: Adds the initial admin user to the Azure Table Storage 'admins' table.
+ * Seed script: Adds an admin user to the Azure Table Storage 'users' table.
  *
  * Usage:
  *   Set AZURE_TABLE_STORAGE_CONNECTION_STRING env var, then run:
@@ -25,19 +25,22 @@ if (!process.env.AZURE_TABLE_STORAGE_CONNECTION_STRING) {
 }
 
 async function seed() {
-    const tableClient = createTableClient("admins");
-    await tableClient.createTable().catch(() => {}); // Ensure table exists
+    const usersClient = createTableClient("users");
+    await usersClient.createTable().catch(() => {}); // Ensure table exists
 
+    const now = new Date();
     const entity = {
-        partitionKey: "admins",
+        partitionKey: "users",
         rowKey: userId,
-        userEmail: userEmail || userId,
-        addedBy: "seed-script",
-        addedAt: new Date().toISOString()
+        email: userEmail || userId,
+        isAdmin: true,
+        defaultInputMode: "percent",
+        firstSeen: now,
+        lastSeen: now
     };
 
     try {
-        await tableClient.upsertEntity(entity, "Merge");
+        await usersClient.upsertEntity(entity, "Merge");
         console.log(`Admin seeded successfully:`);
         console.log(`  userId:    ${userId}`);
         console.log(`  userEmail: ${userEmail || userId}`);

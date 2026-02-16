@@ -1,4 +1,4 @@
-const { createTableClient, getUserInfo, isAdmin } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, isAdmin, ensureUser } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('UpdateProject function processing request.');
@@ -11,13 +11,15 @@ module.exports = async function (context, req) {
         return;
     }
 
+    await ensureUser(req);
+
     const adminStatus = await isAdmin(clientPrincipal.userId);
     if (!adminStatus) {
         context.res = { status: 403, body: "Admin access required." };
         return;
     }
 
-    const { projectId, name, code, color, isActive } = req.body || {};
+    const { projectId, name, code, color, isActive, budgetQ1, budgetQ2, budgetQ3, budgetQ4 } = req.body || {};
 
     if (!projectId || !name || !code) {
         context.res = { status: 400, body: "Missing required fields: 'projectId', 'name', 'code'." };
@@ -35,6 +37,12 @@ module.exports = async function (context, req) {
             updatedAt: new Date(),
             updatedBy: clientPrincipal.userId
         };
+
+        // Add budget fields if provided (FTE per quarter)
+        if (budgetQ1 !== undefined) entity.budgetQ1 = Number(budgetQ1) || 0;
+        if (budgetQ2 !== undefined) entity.budgetQ2 = Number(budgetQ2) || 0;
+        if (budgetQ3 !== undefined) entity.budgetQ3 = Number(budgetQ3) || 0;
+        if (budgetQ4 !== undefined) entity.budgetQ4 = Number(budgetQ4) || 0;
 
         // Check if this is a new project (add createdAt/createdBy)
         try {

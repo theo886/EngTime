@@ -1,9 +1,7 @@
-const { createTableClient, getUserInfo } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, ensureUser } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('GetUserSettings function processing request.');
-
-    const tableClient = createTableClient("usersettings");
 
     const clientPrincipal = getUserInfo(req);
     if (!clientPrincipal || !clientPrincipal.userId) {
@@ -11,10 +9,13 @@ module.exports = async function (context, req) {
         return;
     }
 
+    await ensureUser(req);
+
     const userId = clientPrincipal.userId;
 
     try {
-        const entity = await tableClient.getEntity("settings", userId);
+        const usersClient = createTableClient("users");
+        const entity = await usersClient.getEntity("users", userId);
         context.res = {
             status: 200,
             body: {
@@ -23,7 +24,7 @@ module.exports = async function (context, req) {
         };
     } catch (err) {
         if (err.statusCode === 404) {
-            // No settings saved yet — return defaults
+            // No user record yet — return defaults
             context.res = {
                 status: 200,
                 body: { defaultInputMode: "percent" }

@@ -1,4 +1,4 @@
-const { getUserInfo, isAdmin } = require("../shared/tableClient");
+const { getUserInfo, isAdmin, ensureUser } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('CheckAdmin function processing request.');
@@ -8,6 +8,8 @@ module.exports = async function (context, req) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
+
+    await ensureUser(req);
 
     try {
         const adminStatus = await isAdmin(clientPrincipal.userId);

@@ -1,4 +1,4 @@
-const { createTableClient, getUserInfo } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, ensureUser } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('GetAllTimeAllocations function processing request.');
@@ -11,6 +11,8 @@ module.exports = async function (context, req) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
+
+    await ensureUser(req);
 
     const userId = clientPrincipal.userId;
 

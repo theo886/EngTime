@@ -1,4 +1,4 @@
-const { createTableClient, getUserInfo, isAdmin } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, isAdmin, ensureUser } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('SaveTimeAllocationForUser function processing request.');
@@ -10,6 +10,8 @@ module.exports = async function (context, req) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
+
+    await ensureUser(req);
 
     const adminStatus = await isAdmin(clientPrincipal.userId);
     if (!adminStatus) {
