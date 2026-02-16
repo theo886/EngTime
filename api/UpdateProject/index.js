@@ -24,7 +24,7 @@ module.exports = async function (context, req) {
         return;
     }
 
-    const { projectId, name, color, isActive, budgetQ1, budgetQ2, budgetQ3, budgetQ4 } = req.body || {};
+    const { projectId, name, color, isActive, budgetQ1, budgetQ2, budgetQ3, budgetQ4, isDefault, defaultPercentage } = req.body || {};
 
     if (!projectId || !name) {
         context.res = { status: 400, body: "Missing required fields: 'projectId', 'name'." };
@@ -47,6 +47,11 @@ module.exports = async function (context, req) {
         if (budgetQ2 !== undefined) entity.budgetQ2 = Number(budgetQ2) || 0;
         if (budgetQ3 !== undefined) entity.budgetQ3 = Number(budgetQ3) || 0;
         if (budgetQ4 !== undefined) entity.budgetQ4 = Number(budgetQ4) || 0;
+
+        // Add default project fields if provided
+        if (isDefault !== undefined) entity.isDefault = isDefault === true;
+        if (defaultPercentage !== undefined) entity.defaultPercentage = Number(defaultPercentage) || 0;
+        if (isDefault === false) entity.defaultPercentage = 0;
 
         // Check if this is a new project (add createdAt/createdBy)
         try {

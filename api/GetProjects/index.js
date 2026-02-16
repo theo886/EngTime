@@ -41,6 +41,8 @@ module.exports = async function (context, req) {
                 budgetQ2: entity.budgetQ2 || 0,
                 budgetQ3: entity.budgetQ3 || 0,
                 budgetQ4: entity.budgetQ4 || 0,
+                isDefault: entity.isDefault === true,
+                defaultPercentage: entity.defaultPercentage || 0,
                 createdAt: entity.createdAt || '',
                 updatedAt: entity.updatedAt || ''
             });

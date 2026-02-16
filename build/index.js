@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Projects loaded from API (no static fallback)
   let projects = [];
+  let defaultProjects = [];
   const loadFakeDataForTesting = window.loadFakeDataForTesting;
   
   // Access utility functions from global scope
@@ -91,17 +92,25 @@ document.addEventListener('DOMContentLoaded', function() {
     //resetEntriesToDefault();
   }
 
-  // --- NEW: Function to reset entries to default state ---
+  // --- Function to reset entries to configured default projects ---
   function resetEntriesToDefault() {
-      const newId = Date.now();
-      entries = [{ id: newId, projectId: "CP000039", percentage: "15", isManuallySet: true }];
-      // Reset related state
-      manuallyEditedIds = new Set([newId]);
-      entryInputModes = { [newId]: userDefaultInputMode }; // Set default mode for the new entry
+      manuallyEditedIds = new Set();
+      entryInputModes = {};
+      entries = defaultProjects.map((dp, index) => {
+          const newId = Date.now() + index;
+          manuallyEditedIds.add(newId);
+          entryInputModes[newId] = userDefaultInputMode;
+          return {
+              id: newId,
+              projectId: dp.id,
+              percentage: dp.defaultPercentage.toString(),
+              isManuallySet: true
+          };
+      });
       isSubmitted = false;
       isModified = false;
-      error = ""; // Clear any previous errors
-      console.log("Entries reset to default.");
+      error = "";
+      console.log(`Entries reset to ${defaultProjects.length} configured default(s).`);
   }
 
   // Helper Functions
@@ -1948,7 +1957,8 @@ document.addEventListener('DOMContentLoaded', function() {
         throw new Error('No projects found. Run seedProjects.js or add projects via Admin page.');
     }
     projects = apiProjects;
-    console.log(`Loaded ${projects.length} projects from API.`);
+    defaultProjects = apiProjects.filter(p => p.isActive && p.isDefault === true);
+    console.log(`Loaded ${projects.length} projects from API (${defaultProjects.length} defaults).`);
   }
 
   // Check if current user is an admin

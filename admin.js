@@ -50,6 +50,7 @@
     tabBar.className = 'flex border-b';
     const tabs = [
       { id: 'projects', label: 'Projects' },
+      { id: 'defaults', label: 'Default Projects' },
       { id: 'budgets', label: 'Budgets' },
       { id: 'users', label: 'Users' },
       { id: 'timesheets', label: 'User Timesheets' },
@@ -95,6 +96,7 @@
     try {
       switch (tab) {
         case 'projects': await loadProjectsTab(contentEl); break;
+        case 'defaults': await loadDefaultsTab(contentEl); break;
         case 'budgets': await loadBudgetsTab(contentEl); break;
         case 'users': await loadUsersTab(contentEl); break;
         case 'timesheets': await loadTimesheetsTab(contentEl); break;
@@ -332,6 +334,169 @@
     } catch (err) {
       console.error('Error toggling project:', err);
     }
+  }
+
+  // ====== DEFAULT PROJECTS TAB ======
+  async function loadDefaultsTab(contentEl) {
+    const response = await fetch('/api/GetProjects?includeInactive=false');
+    if (!response.ok) throw new Error('Failed to load projects');
+    const projectsList = await response.json();
+
+    contentEl.textContent = '';
+
+    // Description
+    const desc = document.createElement('p');
+    desc.className = 'text-sm text-slate-500 mb-4';
+    desc.textContent = 'Configure which projects appear by default when users start a new week. Remaining percentage will be available for users to allocate.';
+    contentEl.appendChild(desc);
+
+    const projectsContainer = document.createElement('div');
+    projectsContainer.className = 'space-y-2 mb-4';
+
+    // Track original state for change detection + current state
+    const originalState = {};
+    const state = {};
+    projectsList.forEach(p => {
+      const s = { selected: p.isDefault === true, percentage: p.defaultPercentage || 0 };
+      originalState[p.id] = { ...s };
+      state[p.id] = { ...s };
+    });
+
+    // Total display element (declared early for updateTotal)
+    const totalDisplay = document.createElement('span');
+
+    function updateTotal() {
+      const total = Object.values(state)
+        .filter(s => s.selected)
+        .reduce((sum, s) => sum + s.percentage, 0);
+      totalDisplay.textContent = total + '%';
+      totalDisplay.className = total <= 100
+        ? 'text-2xl font-bold text-green-600'
+        : 'text-2xl font-bold text-red-600';
+    }
+
+    // Render rows: checkbox + color swatch + label + percentage input
+    projectsList.forEach(project => {
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-3 p-2 hover:bg-slate-50 rounded';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = state[project.id].selected;
+      checkbox.className = 'h-4 w-4 text-indigo-600';
+
+      const colorBox = document.createElement('div');
+      colorBox.className = 'w-4 h-4 rounded';
+      colorBox.style.backgroundColor = project.color;
+
+      const label = document.createElement('span');
+      label.className = 'text-sm flex-1';
+      label.textContent = project.id + ' - ' + project.name;
+
+      const percentInput = document.createElement('input');
+      percentInput.type = 'number';
+      percentInput.min = '0';
+      percentInput.max = '100';
+      percentInput.value = state[project.id].percentage;
+      percentInput.disabled = !state[project.id].selected;
+      percentInput.className = 'w-20 px-2 py-1 border rounded text-sm text-right';
+
+      checkbox.addEventListener('change', () => {
+        state[project.id].selected = checkbox.checked;
+        percentInput.disabled = !checkbox.checked;
+        if (!checkbox.checked) { percentInput.value = 0; state[project.id].percentage = 0; }
+        updateTotal();
+      });
+
+      percentInput.addEventListener('input', () => {
+        state[project.id].percentage = parseFloat(percentInput.value) || 0;
+        updateTotal();
+      });
+
+      const pctLabel = document.createElement('span');
+      pctLabel.className = 'text-sm text-slate-500';
+      pctLabel.textContent = '%';
+
+      row.appendChild(checkbox);
+      row.appendChild(colorBox);
+      row.appendChild(label);
+      row.appendChild(percentInput);
+      row.appendChild(pctLabel);
+      projectsContainer.appendChild(row);
+    });
+
+    contentEl.appendChild(projectsContainer);
+
+    // Total display row
+    const totalRow = document.createElement('div');
+    totalRow.className = 'flex justify-between items-center p-4 bg-slate-100 rounded mb-4';
+    const totalLabel = document.createElement('span');
+    totalLabel.className = 'text-sm font-medium text-slate-700';
+    totalLabel.textContent = 'Total:';
+    totalRow.appendChild(totalLabel);
+    totalRow.appendChild(totalDisplay);
+    contentEl.appendChild(totalRow);
+
+    // Save button
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Save Default Configuration';
+    saveBtn.className = 'px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm';
+
+    const errorEl = document.createElement('div');
+    errorEl.className = 'mt-2 text-red-500 text-sm hidden';
+
+    saveBtn.addEventListener('click', async () => {
+      try {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+
+        // Only update projects whose default state changed
+        const changed = projectsList.filter(p => {
+          const o = originalState[p.id];
+          const s = state[p.id];
+          return o.selected !== s.selected || o.percentage !== s.percentage;
+        });
+
+        const updates = changed.map(project => {
+          const s = state[project.id];
+          return fetch('/api/UpdateProject', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectId: project.id,
+              name: project.name,
+              color: project.color,
+              isActive: project.isActive,
+              isDefault: s.selected,
+              defaultPercentage: s.selected ? s.percentage : 0
+            })
+          }).then(r => {
+            if (!r.ok) throw new Error('Failed to update ' + project.id);
+          });
+        });
+
+        await Promise.all(updates);
+
+        // Update original state to match current
+        projectsList.forEach(p => { originalState[p.id] = { ...state[p.id] }; });
+
+        errorEl.classList.add('hidden');
+        saveBtn.textContent = 'Saved!';
+        setTimeout(() => {
+          saveBtn.textContent = 'Save Default Configuration';
+          saveBtn.disabled = false;
+        }, 2000);
+      } catch (err) {
+        errorEl.textContent = 'Error saving: ' + err.message;
+        errorEl.classList.remove('hidden');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Default Configuration';
+      }
+    });
+
+    contentEl.appendChild(saveBtn);
+    contentEl.appendChild(errorEl);
+    updateTotal();
   }
 
   // ====== BUDGETS TAB ======
