@@ -3,8 +3,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // Configuration flags
   const debugMode = true; // Set to false to disable fake data loading
   
-  // Access projects from global scope (mutable — may be overwritten by API data)
-  let projects = window.projectData.projects;
+  // Projects loaded from API (no static fallback)
+  let projects = [];
   const loadFakeDataForTesting = window.loadFakeDataForTesting;
   
   // Access utility functions from global scope
@@ -1847,23 +1847,18 @@ document.addEventListener('DOMContentLoaded', function() {
     createAdminPage();
   }
 
-  // Load projects from API, falling back to static data/projectData.js
+  // Load projects from API (no fallback — errors surface immediately)
   async function loadProjectsFromAPI() {
-    try {
-        const response = await fetch('/api/GetProjects');
-        if (response.ok) {
-            const apiProjects = await response.json();
-            if (apiProjects && apiProjects.length > 0) {
-                projects = apiProjects;
-                console.log(`Loaded ${projects.length} projects from API.`);
-                return;
-            }
-        }
-    } catch (err) {
-        console.warn('Failed to load projects from API, using static fallback:', err);
+    const response = await fetch('/api/GetProjects');
+    if (!response.ok) {
+        throw new Error(`Failed to load projects: ${response.status} ${response.statusText}`);
     }
-    // Fallback: keep using window.projectData.projects (already assigned)
-    console.log('Using static project data as fallback.');
+    const apiProjects = await response.json();
+    if (!apiProjects || apiProjects.length === 0) {
+        throw new Error('No projects found. Run seedProjects.js or add projects via Admin page.');
+    }
+    projects = apiProjects;
+    console.log(`Loaded ${projects.length} projects from API.`);
   }
 
   // Check if current user is an admin
