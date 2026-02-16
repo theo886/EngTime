@@ -1574,17 +1574,18 @@
 
   function getDateRangeFromPreset(preset) {
     if (preset === 'custom') return null;
-    if (preset === 'all') return { startDate: null, endDate: null };
 
-    const now = new Date();
-    const endDate = now.toISOString().slice(0, 10);
-    const start = new Date(now);
+    const year = new Date().getFullYear();
 
-    if (preset === '3mo') start.setMonth(start.getMonth() - 3);
-    else if (preset === '6mo') start.setMonth(start.getMonth() - 6);
-    else if (preset === '1yr') start.setFullYear(start.getFullYear() - 1);
+    if (preset === 'ytd') {
+      return { startDate: year + '-01-01', endDate: new Date().toISOString().slice(0, 10) };
+    }
+    if (preset === 'q1') return { startDate: year + '-01-01', endDate: year + '-03-31' };
+    if (preset === 'q2') return { startDate: year + '-04-01', endDate: year + '-06-30' };
+    if (preset === 'q3') return { startDate: year + '-07-01', endDate: year + '-09-30' };
+    if (preset === 'q4') return { startDate: year + '-10-01', endDate: year + '-12-31' };
 
-    return { startDate: start.toISOString().slice(0, 10), endDate: endDate };
+    return { startDate: null, endDate: null };
   }
 
   function buildAnalyticsUrl(startDate, endDate) {
@@ -1600,7 +1601,7 @@
     contentEl.textContent = '';
 
     // Restore saved selection
-    const savedPreset = localStorage.getItem('analyticsDatePreset') || '3mo';
+    const savedPreset = localStorage.getItem('analyticsDatePreset') || 'ytd';
     const savedCustomStart = localStorage.getItem('analyticsCustomStart') || '';
     const savedCustomEnd = localStorage.getItem('analyticsCustomEnd') || '';
 
@@ -1615,10 +1616,11 @@
     const select = document.createElement('select');
     select.className = 'px-3 py-2 border rounded text-sm';
     const presets = [
-      { value: '3mo', label: 'Last 3 Months' },
-      { value: '6mo', label: 'Last 6 Months' },
-      { value: '1yr', label: 'Last 12 Months' },
-      { value: 'all', label: 'All Time' },
+      { value: 'ytd', label: 'Year to Date' },
+      { value: 'q1', label: 'Q1 (Jan–Mar)' },
+      { value: 'q2', label: 'Q2 (Apr–Jun)' },
+      { value: 'q3', label: 'Q3 (Jul–Sep)' },
+      { value: 'q4', label: 'Q4 (Oct–Dec)' },
       { value: 'custom', label: 'Custom...' }
     ];
     presets.forEach(p => {
