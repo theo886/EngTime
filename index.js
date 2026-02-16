@@ -755,7 +755,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const label = document.createElement('span');
         label.className = 'truncate';
-        label.textContent = `${project.name} (${project.code})`;
+        label.textContent = `${project.name} (${project.id})`;
 
         option.appendChild(colorDot);
         option.appendChild(label);

@@ -33,7 +33,6 @@ async function seed() {
             partitionKey: "projects",
             rowKey: project.id,
             name: project.name,
-            code: project.code,
             color: project.color || "#808080",
             isActive: true,
             createdAt: new Date(),

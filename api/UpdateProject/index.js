@@ -19,10 +19,10 @@ module.exports = async function (context, req) {
         return;
     }
 
-    const { projectId, name, code, color, isActive, budgetQ1, budgetQ2, budgetQ3, budgetQ4 } = req.body || {};
+    const { projectId, name, color, isActive, budgetQ1, budgetQ2, budgetQ3, budgetQ4 } = req.body || {};
 
-    if (!projectId || !name || !code) {
-        context.res = { status: 400, body: "Missing required fields: 'projectId', 'name', 'code'." };
+    if (!projectId || !name) {
+        context.res = { status: 400, body: "Missing required fields: 'projectId', 'name'." };
         return;
     }
 
@@ -31,7 +31,6 @@ module.exports = async function (context, req) {
             partitionKey: "projects",
             rowKey: projectId,
             name: name,
-            code: code,
             color: color || '#808080',
             isActive: isActive !== false, // defaults to true
             updatedAt: new Date(),

@@ -24,7 +24,6 @@ module.exports = async function (context, req) {
             projects.push({
                 id: entity.rowKey,
                 name: entity.name || '',
-                code: entity.code || '',
                 color: entity.color || '#808080',
                 isActive: entity.isActive !== false,
                 budgetQ1: entity.budgetQ1 || 0,

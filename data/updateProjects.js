@@ -37,25 +37,25 @@ const colorPalette = [
 
 // List of projects to be maintained
 const projects = [
-  { id: "CP000022", name: "General R&D Infrastructure", code: "CP000022", color: colorPalette[0] },
-  { id: "CP000038", name: "Stld Changeover Costs", code: "CP000038", color: colorPalette[1] },
-  { id: "CP000039", name: "Unapplied Engineering Time", code: "CP000039", color: colorPalette[2] },
-  { id: "MS000002", name: "NPI ST PX Series", code: "MS000002", color: colorPalette[3] },
-  { id: "PE000005", name: "ENG MFG Support", code: "PE000005", color: colorPalette[4] },
-  { id: "RD000026", name: "Sales Orders", code: "RD000026", color: colorPalette[5] },
-  { id: "RD000027", name: "PMO-025 - PXG V3", code: "RD000027", color: colorPalette[6] },
-  { id: "RD000042", name: "PX G 1300 Product Support", code: "RD000042", color: colorPalette[7] },
-  { id: "RD000043", name: "PX G Controls", code: "RD000043", color: colorPalette[8] },
-  { id: "RD000047", name: "PX Pump Train II", code: "RD000047", color: colorPalette[9] },
-  { id: "RD000048", name: "DOE - PXG for Heat Pump", code: "RD000048", color: colorPalette[10] },
-  { id: "VO000008", name: "Water Sales Support", code: "VO000008", color: colorPalette[11] },
-  { id: "VO000009", name: "PX, Turbo, Pump, Support", code: "VO000009", color: colorPalette[12] },
-  { id: "VO000010", name: "IPD Evaluation, PX Cost Reduction", code: "VO000010", color: colorPalette[13] },
-  { id: "VO000011", name: "HP pump improvements", code: "VO000011", color: colorPalette[14] },
-  { id: "VO000012", name: "PX Power Improvements", code: "VO000012", color: colorPalette[15] },
-  { id: "VO000013", name: "PX Q500 Development", code: "VO000013", color: colorPalette[16] },
-  { id: "WD000007", name: "PX Q400 COGS Reduction", code: "WD000007", color: colorPalette[17] },
-  { id: "WD000009", name: "Turbo Std 550 and 875", code: "WD000009", color: colorPalette[18] }
+  { id: "CP000022", name: "General R&D Infrastructure", color: colorPalette[0] },
+  { id: "CP000038", name: "Stld Changeover Costs", color: colorPalette[1] },
+  { id: "CP000039", name: "Unapplied Engineering Time", color: colorPalette[2] },
+  { id: "MS000002", name: "NPI ST PX Series", color: colorPalette[3] },
+  { id: "PE000005", name: "ENG MFG Support", color: colorPalette[4] },
+  { id: "RD000026", name: "Sales Orders", color: colorPalette[5] },
+  { id: "RD000027", name: "PMO-025 - PXG V3", color: colorPalette[6] },
+  { id: "RD000042", name: "PX G 1300 Product Support", color: colorPalette[7] },
+  { id: "RD000043", name: "PX G Controls", color: colorPalette[8] },
+  { id: "RD000047", name: "PX Pump Train II", color: colorPalette[9] },
+  { id: "RD000048", name: "DOE - PXG for Heat Pump", color: colorPalette[10] },
+  { id: "VO000008", name: "Water Sales Support", color: colorPalette[11] },
+  { id: "VO000009", name: "PX, Turbo, Pump, Support", color: colorPalette[12] },
+  { id: "VO000010", name: "IPD Evaluation, PX Cost Reduction", color: colorPalette[13] },
+  { id: "VO000011", name: "HP pump improvements", color: colorPalette[14] },
+  { id: "VO000012", name: "PX Power Improvements", color: colorPalette[15] },
+  { id: "VO000013", name: "PX Q500 Development", color: colorPalette[16] },
+  { id: "WD000007", name: "PX Q400 COGS Reduction", color: colorPalette[17] },
+  { id: "WD000009", name: "Turbo Std 550 and 875", color: colorPalette[18] }
 ];
 
 /**
@@ -93,8 +93,7 @@ function getNextId(projects, prefix = "CP") {
  */
 function addProject(name, prefix = "CP", customColor = null) {
   const id = getNextId(projects, prefix);
-  const code = id; // Use the ID as the code
-  
+
   // Assign a color - either use the provided color or pick from the palette
   let color;
   if (customColor) {
@@ -106,7 +105,7 @@ function addProject(name, prefix = "CP", customColor = null) {
     color = colorPalette[colorIndex];
   }
   
-  const newProject = { id, name, code, color };
+  const newProject = { id, name, color };
   projects.push(newProject);
   return newProject;
 }
@@ -123,7 +122,6 @@ function generateFileContent() {
  * Each project has the following properties:
  * - id: A unique identifier for the project
  * - name: The display name of the project
- * - code: A project code (format: PREFIX-###)
  */
 
 // Official projects data
@@ -150,21 +148,11 @@ function getProjectById(id) {
   return projectData.find(project => project.id === parseInt(id)) || null;
 }
 
-/**
- * Get a project by its code
- * @param {string} code - The project code to search for
- * @returns {Object|null} The project object or null if not found
- */
-function getProjectByCode(code) {
-  return projectData.find(project => project.code === code) || null;
-}
-
 // Expose the data and functions to the window object
 window.projectData = {
   projects: projectData,
   getAllProjects,
-  getProjectById,
-  getProjectByCode
+  getProjectById
 };`;
 
   return header + projectsJson + functions;
