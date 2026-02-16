@@ -21,7 +21,7 @@ const MOCK_API = {
   '/.auth/me': {
     clientPrincipal: {
       userId: 'dev-user-123',
-      userDetails: 'atheodossiou@example.com',
+      userDetails: 'atheodossiou@energyrecovery.com',
       identityProvider: 'aad',
       userRoles: ['authenticated', 'anonymous']
     }
@@ -29,7 +29,7 @@ const MOCK_API = {
   '/api/CheckAdmin': { isAdmin: true },
   '/api/GetUserSettings': { defaultInputMode: 'percent' },
   '/api/GetUsers': [
-    { userId: 'dev-user-123', email: 'atheodossiou@example.com', isAdmin: true, defaultInputMode: 'percent', firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString() }
+    { userId: 'dev-user-123', email: 'atheodossiou@energyrecovery.com', isAdmin: true, defaultInputMode: 'percent', firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString() }
   ],
   '/api/GetAllTimeAllocations': [],
   '/api/GetAllUsersTimesheets': [],

@@ -2,6 +2,15 @@ const { TableClient, AzureNamedKeyCredential } = require("@azure/data-tables");
 
 const accountName = "engtimetable";
 const connectionString = process.env.AZURE_TABLE_STORAGE_CONNECTION_STRING;
+const ALLOWED_DOMAIN = "energyrecovery.com";
+
+/**
+ * Checks if the authenticated user's email belongs to the allowed domain.
+ */
+function isAllowedDomain(clientPrincipal) {
+    if (!clientPrincipal || !clientPrincipal.userDetails) return false;
+    return clientPrincipal.userDetails.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`);
+}
 
 /**
  * Creates a TableClient for the given table name.
@@ -58,6 +67,7 @@ async function isAdmin(userId) {
 async function ensureUser(req) {
     const clientPrincipal = getUserInfo(req);
     if (!clientPrincipal || !clientPrincipal.userId) return;
+    if (!isAllowedDomain(clientPrincipal)) return;
 
     try {
         const usersClient = createTableClient("users");
@@ -87,4 +97,4 @@ async function ensureUser(req) {
     }
 }
 
-module.exports = { createTableClient, getUserInfo, isAdmin, ensureUser };
+module.exports = { createTableClient, getUserInfo, isAdmin, ensureUser, isAllowedDomain };

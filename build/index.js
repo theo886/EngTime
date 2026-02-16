@@ -1893,6 +1893,39 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log("User info from checkAuthStatus:", userInfo);
 
         if (userInfo) {
+            // Domain restriction check
+            if (!userInfo.userDetails || !userInfo.userDetails.toLowerCase().endsWith('@energyrecovery.com')) {
+                loadingIndicator?.classList.add('hidden');
+                weeklyTrackerContainer.textContent = '';
+
+                const wrapper = document.createElement('div');
+                wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:2rem;';
+
+                const heading = document.createElement('h2');
+                heading.style.cssText = 'font-size:1.5rem;font-weight:600;margin-bottom:1rem;color:#991b1b;';
+                heading.textContent = 'Access Restricted';
+
+                const msg = document.createElement('p');
+                msg.style.cssText = 'color:#4b5563;margin-bottom:1.5rem;';
+                msg.textContent = 'This application is only available to @energyrecovery.com accounts.';
+
+                const userMsg = document.createElement('p');
+                userMsg.style.cssText = 'color:#6b7280;margin-bottom:2rem;';
+                userMsg.textContent = 'You are signed in as ' + (userInfo.userDetails || 'unknown') + '.';
+
+                const logoutLink = document.createElement('a');
+                logoutLink.href = '/.auth/logout';
+                logoutLink.style.cssText = 'padding:0.5rem 1.5rem;background:#2563eb;color:white;border-radius:0.375rem;text-decoration:none;font-weight:500;';
+                logoutLink.textContent = 'Sign Out';
+
+                wrapper.appendChild(heading);
+                wrapper.appendChild(msg);
+                wrapper.appendChild(userMsg);
+                wrapper.appendChild(logoutLink);
+                weeklyTrackerContainer.appendChild(wrapper);
+                return;
+            }
+
             // Load user settings, check admin status, and load projects in parallel
             await Promise.all([loadUserSettings(), checkAdminStatus(), loadProjectsFromAPI()]);
             updateAuthUI(); // Update login/logout UI (handles showing user view)

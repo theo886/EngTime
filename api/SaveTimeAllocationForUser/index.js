@@ -1,4 +1,4 @@
-const { createTableClient, getUserInfo, isAdmin, ensureUser } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, isAdmin, ensureUser, isAllowedDomain } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('SaveTimeAllocationForUser function processing request.');
@@ -8,6 +8,11 @@ module.exports = async function (context, req) {
     const clientPrincipal = getUserInfo(req);
     if (!clientPrincipal || !clientPrincipal.userId) {
         context.res = { status: 401, body: "User not authenticated." };
+        return;
+    }
+
+    if (!isAllowedDomain(clientPrincipal)) {
+        context.res = { status: 403, body: "Access restricted to energyrecovery.com accounts." };
         return;
     }
 
