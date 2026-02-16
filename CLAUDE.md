@@ -30,7 +30,7 @@ with Azure Functions (Node.js) backend and Azure Table Storage.
 - **Global scope**: Modules expose to `window` (e.g., `window.projectData`, `window.utilsFunctions`)
 - **Auth**: Azure SWA built-in auth via `x-ms-client-principal` header (base64 JSON)
 - **Storage**: Azure Table Storage with PartitionKey=userId, RowKey=weekDate_projectId
-- **Project data**: `data/projectData.js` defines projects with id, name, code, color fields
+- **Project data**: `data/projectData.js` defines projects with id, name, color fields
 
 ## Deployment
 - CI/CD via GitHub Actions → Azure Static Web Apps (on push to `main`)
@@ -41,6 +41,30 @@ with Azure Functions (Node.js) backend and Azure Table Storage.
 ## Environment Variables (API)
 - `AZURE_TABLE_STORAGE_CONNECTION_STRING` — Table Storage connection (falls back to Managed Identity)
 - `POWER_AUTOMATE_SAVE_URL` — Optional: triggers Excel update via Power Automate on save
+
+## Power Automate Integration (DO NOT BREAK)
+`SaveTimeAllocation` POSTs to a Power Automate flow (`POWER_AUTOMATE_SAVE_URL`) on every timesheet save.
+The flow writes to SharePoint, sends Teams notifications, and refreshes a Power BI dataset.
+
+**Payload contract** (defined in `api/SaveTimeAllocation/index.js` lines 97-104):
+```json
+{
+  "userId": "string",
+  "userEmail": "string",
+  "week": "string (e.g. '01/06/2025 - 01/10/2025')",
+  "weekStartDate": "string (e.g. '01/06/2025')",
+  "dateSubmitted": "string (ISO 8601)",
+  "entries": [
+    { "projectId": "string", "projectName": "string", "percentage": "number", "hours": "number" }
+  ]
+}
+```
+**If you change any of these field names, types, or the entries structure, the Power Automate flow will break silently.** The flow definition is in `PA definition.json` for reference.
+
+Key downstream effects:
+- SharePoint list rows are created per entry (fields mapped positionally: field_1=userId … field_10=hours)
+- Teams notification to admin + user's manager includes an HTML table of entries
+- Power BI dataset refresh depends on the SharePoint data being correct
 
 ## Gotchas
 - `index.js` is a large monolith — all UI/state logic is in one file
