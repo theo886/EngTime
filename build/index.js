@@ -12,11 +12,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // State variables
   let currentWeek = setInitialWeek();
+  const defaultEntryId = Date.now();
   let entries = [
-    { id: Date.now(), projectId: "CP000039", percentage: "15", isManuallySet: false }
+    { id: defaultEntryId, projectId: "CP000039", percentage: "15", isManuallySet: true }
   ];
   let allTimesheetDataCache = {}; // Cache for all user data { "weekString": [{ projectId, percentage }] }
-  let manuallyEditedIds = new Set();
+  let manuallyEditedIds = new Set([defaultEntryId]);
   let isAnyDropdownOpen = false;
   let isPinned = false;
   let error = "";
@@ -91,9 +92,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // --- NEW: Function to reset entries to default state ---
   function resetEntriesToDefault() {
       const newId = Date.now();
-      entries = [{ id: newId, projectId: "CP000039", percentage: "15", isManuallySet: false }];
+      entries = [{ id: newId, projectId: "CP000039", percentage: "15", isManuallySet: true }];
       // Reset related state
-      manuallyEditedIds = new Set();
+      manuallyEditedIds = new Set([newId]);
       entryInputModes = { [newId]: userDefaultInputMode }; // Set default mode for the new entry
       isSubmitted = false;
       isModified = false;
