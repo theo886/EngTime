@@ -26,6 +26,7 @@ if (!process.env.AZURE_TABLE_STORAGE_CONNECTION_STRING) {
 
 async function seed() {
     const tableClient = createTableClient("admins");
+    await tableClient.createTable().catch(() => {}); // Ensure table exists
 
     const entity = {
         partitionKey: "admins",
@@ -40,6 +41,7 @@ async function seed() {
         console.log(`Admin seeded successfully:`);
         console.log(`  userId:    ${userId}`);
         console.log(`  userEmail: ${userEmail || userId}`);
+        process.exit(0);
     } catch (err) {
         console.error(`Error seeding admin:`, err.message);
         process.exit(1);

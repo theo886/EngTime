@@ -24,6 +24,7 @@ const { createTableClient } = require("../shared/tableClient");
 
 async function seed() {
     const tableClient = createTableClient("projects");
+    await tableClient.createTable().catch(() => {}); // Ensure table exists
 
     console.log(`Seeding ${projectData.length} projects into 'projects' table...`);
 
@@ -48,6 +49,7 @@ async function seed() {
     }
 
     console.log("Done seeding projects.");
+    process.exit(0);
 }
 
 seed().catch(err => {
