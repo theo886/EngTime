@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "build:css": "tailwindcss -i ./src/input.css -o ./build/style.css --minify",
-    "build": "npm run build:css && cp index.html build/ && cp index.js build/ && cp utils.js build/ && cp favicon.ico build/ && cp -r data build/ && echo 'Build completed successfully'",
+    "build": "npm run build:css && cp index.html build/ && cp index.js build/ && cp admin.js build/ && cp utils.js build/ && cp favicon.ico build/ && cp -r data build/ && echo 'Build completed successfully'",
     "test": "echo \"Error: no test specified\" && exit 1",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"

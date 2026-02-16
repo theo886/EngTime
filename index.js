@@ -3,8 +3,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // Configuration flags
   const debugMode = true; // Set to false to disable fake data loading
   
-  // Access projects and loadFakeDataForTesting from global scope
-  const projects = window.projectData.projects;
+  // Access projects from global scope (mutable — may be overwritten by API data)
+  let projects = window.projectData.projects;
   const loadFakeDataForTesting = window.loadFakeDataForTesting;
   
   // Access utility functions from global scope
@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // State variables
   let currentWeek = setInitialWeek();
   let entries = [
-    { id: Date.now(), projectId: "", percentage: "100", isManuallySet: false }
+    { id: Date.now(), projectId: "CP000039", percentage: "15", isManuallySet: false }
   ];
   let allTimesheetDataCache = {}; // Cache for all user data { "weekString": [{ projectId, percentage }] }
   let manuallyEditedIds = new Set();
@@ -24,6 +24,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let isModified = false;
   let entryInputModes = {}; // Will store entry.id -> 'percent' or 'hours'
   let userInfo = null; // Store user info
+  let userDefaultInputMode = 'percent'; // User's preferred default input mode (percent or hours)
+  let isAdmin = false; // Whether current user is an admin
   
   // // Load fake data for testing if in debug mode
   // if (debugMode) {
@@ -89,10 +91,10 @@ document.addEventListener('DOMContentLoaded', function() {
   // --- NEW: Function to reset entries to default state ---
   function resetEntriesToDefault() {
       const newId = Date.now();
-      entries = [{ id: newId, projectId: "", percentage: "100", isManuallySet: false }];
+      entries = [{ id: newId, projectId: "CP000039", percentage: "15", isManuallySet: false }];
       // Reset related state
       manuallyEditedIds = new Set();
-      entryInputModes = { [newId]: 'percent' }; // Set default mode for the new entry
+      entryInputModes = { [newId]: userDefaultInputMode }; // Set default mode for the new entry
       isSubmitted = false;
       isModified = false;
       error = ""; // Clear any previous errors
@@ -117,6 +119,89 @@ document.addEventListener('DOMContentLoaded', function() {
     const monday = new Date(d.setDate(diff));
     monday.setHours(0, 0, 0, 0); // Reset time to start of day
     return monday;
+  }
+
+  // Find the first unfilled (unsubmitted) week starting from the earliest known data
+  function findFirstUnfilledWeek() {
+    const today = new Date();
+    const startOfCurrentRealWeek = getStartOfWeek(today);
+
+    // If no data at all, return current week
+    if (Object.keys(allTimesheetDataCache).length === 0) {
+      return startOfCurrentRealWeek;
+    }
+
+    // Walk backwards from current week to find earliest week with data (start boundary)
+    let searchWeek = new Date(startOfCurrentRealWeek);
+    let earliestWithData = null;
+    // Search up to 52 weeks back
+    for (let i = 0; i < 52; i++) {
+      const weekKey = formatWeekRange(searchWeek);
+      if (allTimesheetDataCache[weekKey]) {
+        earliestWithData = new Date(searchWeek);
+      }
+      searchWeek.setDate(searchWeek.getDate() - 7);
+    }
+
+    // If no data found at all, return current week
+    if (!earliestWithData) {
+      return startOfCurrentRealWeek;
+    }
+
+    // Walk forward from earliest data week, find first gap
+    let checkWeek = new Date(earliestWithData);
+    while (checkWeek.getTime() <= startOfCurrentRealWeek.getTime()) {
+      const weekKey = formatWeekRange(checkWeek);
+      if (!allTimesheetDataCache[weekKey]) {
+        // Found an unfilled week
+        return new Date(checkWeek);
+      }
+      checkWeek.setDate(checkWeek.getDate() + 7);
+    }
+
+    // All weeks filled up to current week — return current week
+    return startOfCurrentRealWeek;
+  }
+
+  // Get the top N most frequently used projects from the last 3 months of cache data
+  function getFrequentProjects(topN = 5) {
+    const now = new Date();
+    const threeMonthsAgo = new Date(now);
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+    const projectCounts = {};
+
+    Object.keys(allTimesheetDataCache).forEach(weekKey => {
+      // Parse the start date from "M/D/YYYY - M/D/YYYY"
+      const startDateStr = weekKey.split(' - ')[0];
+      const parts = startDateStr.split('/');
+      if (parts.length !== 3) return;
+      const [month, day, year] = parts.map(Number);
+      const weekStartDate = new Date(year, month - 1, day);
+
+      // Only count weeks within last 3 months
+      if (weekStartDate < threeMonthsAgo) return;
+
+      const weekEntries = allTimesheetDataCache[weekKey];
+      if (!weekEntries) return;
+
+      weekEntries.forEach(entry => {
+        const pid = entry.ProjectId;
+        if (!pid) return;
+        projectCounts[pid] = (projectCounts[pid] || 0) + 1;
+      });
+    });
+
+    // Sort by count descending, take top N
+    const sorted = Object.entries(projectCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, topN)
+      .map(([pid]) => pid);
+
+    // Return the actual project objects in frequency order
+    return sorted
+      .map(pid => projects.find(p => p.id.toString() === pid))
+      .filter(Boolean);
   }
 
   function createInitialHTML() {
@@ -244,6 +329,27 @@ document.addEventListener('DOMContentLoaded', function() {
                         <rect x="3" y="14" width="7" height="7"></rect>
                       </svg>
                       Dashboard
+                    </a>
+                    <a href="#" id="admin-link" class="flex items-center hidden">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
+                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                      Admin
+                    </a>
+                    <a href="#" id="settings-link" class="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
+                        <line x1="4" y1="21" x2="4" y2="14"></line>
+                        <line x1="4" y1="10" x2="4" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12" y2="3"></line>
+                        <line x1="20" y1="21" x2="20" y2="16"></line>
+                        <line x1="20" y1="12" x2="20" y2="3"></line>
+                        <line x1="1" y1="14" x2="7" y2="14"></line>
+                        <line x1="9" y1="8" x2="15" y2="8"></line>
+                        <line x1="17" y1="16" x2="23" y2="16"></line>
+                      </svg>
+                      Settings
                     </a>
                     <a href="/.auth/logout?post_logout_redirect_uri=/" id="logout-button" class="flex items-center">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
@@ -428,14 +534,51 @@ document.addEventListener('DOMContentLoaded', function() {
     const dashboardLink = document.getElementById('dashboard-link');
     if (dashboardLink) {
         dashboardLink.addEventListener('click', (event) => {
-            event.preventDefault(); // Prevent default anchor behavior
-            showReportsPage(); // Show the reports/dashboard view
-            // Close the dropdown menu
+            event.preventDefault();
+            showReportsPage();
             const dropdownContent = document.getElementById('user-dropdown-content');
             if (dropdownContent) {
                 dropdownContent.classList.remove('show');
             }
         });
+    }
+
+    // Settings link
+    const settingsLink = document.getElementById('settings-link');
+    if (settingsLink) {
+        settingsLink.addEventListener('click', (event) => {
+            event.preventDefault();
+            showSettingsModal();
+            const dropdownContent = document.getElementById('user-dropdown-content');
+            if (dropdownContent) {
+                dropdownContent.classList.remove('show');
+            }
+        });
+    }
+
+    // Admin link
+    const adminLink = document.getElementById('admin-link');
+    if (adminLink) {
+        adminLink.addEventListener('click', (event) => {
+            event.preventDefault();
+            showAdminPage();
+            const dropdownContent = document.getElementById('user-dropdown-content');
+            if (dropdownContent) {
+                dropdownContent.classList.remove('show');
+            }
+        });
+    }
+
+    // Settings modal buttons
+    const settingsCancelBtn = document.getElementById('settings-cancel-btn');
+    if (settingsCancelBtn) {
+        settingsCancelBtn.addEventListener('click', () => {
+            document.getElementById('settings-modal').classList.add('hidden');
+        });
+    }
+    const settingsSaveBtn = document.getElementById('settings-save-btn');
+    if (settingsSaveBtn) {
+        settingsSaveBtn.addEventListener('click', saveSettings);
     }
   }
 
@@ -504,9 +647,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (nextWeekButton) {
         const today = new Date();
         const startOfCurrentRealWeek = getStartOfWeek(today);
+        // Allow navigating up to 2 weeks ahead of the current real week
+        const maxWeek = new Date(startOfCurrentRealWeek);
+        maxWeek.setDate(maxWeek.getDate() + 14);
 
-        // Compare the start of the displayed week with the start of the *actual* current week
-        if (currentWeek.getTime() >= startOfCurrentRealWeek.getTime()) {
+        if (currentWeek.getTime() >= maxWeek.getTime()) {
             nextWeekButton.disabled = true;
             nextWeekButton.classList.add('opacity-50', 'cursor-not-allowed');
         } else {
@@ -524,7 +669,7 @@ document.addEventListener('DOMContentLoaded', function() {
     entries.forEach((entry, index) => {
       // Initialize input mode for new entries
       if (!entryInputModes[entry.id]) {
-        entryInputModes[entry.id] = 'percent';
+        entryInputModes[entry.id] = userDefaultInputMode;
       }
       
       const entryDiv = document.createElement('div');
@@ -599,23 +744,57 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
       
-      projects.forEach(project => {
+      // Helper to create a dropdown option for a project
+      function createDropdownOption(project) {
         const option = document.createElement('div');
         option.className = 'px-3 py-2 hover:bg-slate-100 cursor-pointer overflow-hidden text-ellipsis flex items-center space-x-2';
-        option.innerHTML = `
-          <span class="inline-block w-4 h-4 rounded-full flex-shrink-0" style="background-color: ${project.color || '#808080'}"></span>
-          <span class="truncate">${project.name} (${project.code})</span>
-        `;
+
+        const colorDot = document.createElement('span');
+        colorDot.className = 'inline-block w-4 h-4 rounded-full flex-shrink-0';
+        colorDot.style.backgroundColor = project.color || '#808080';
+
+        const label = document.createElement('span');
+        label.className = 'truncate';
+        label.textContent = `${project.name} (${project.code})`;
+
+        option.appendChild(colorDot);
+        option.appendChild(label);
+
         option.addEventListener('click', function(event) {
           updateEntry(entry.id, 'projectId', project.id.toString());
           dropdown.classList.add('hidden');
           isAnyDropdownOpen = false;
-          // Re-enable the add button
           document.getElementById('add-project-button').disabled = false;
-          // Prevent the click from bubbling up to the document
           event.stopPropagation();
         });
-        dropdown.appendChild(option);
+        return option;
+      }
+
+      // Render "Frequently Used" section if there are frequent projects
+      const frequentProjects = getFrequentProjects(5);
+      if (frequentProjects.length > 0) {
+        const freqHeader = document.createElement('div');
+        freqHeader.className = 'px-3 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider';
+        freqHeader.textContent = 'Frequently Used';
+        dropdown.appendChild(freqHeader);
+
+        frequentProjects.forEach(project => {
+          dropdown.appendChild(createDropdownOption(project));
+        });
+
+        // Separator
+        const separator = document.createElement('div');
+        separator.className = 'border-t border-slate-200 my-1';
+        dropdown.appendChild(separator);
+
+        const allHeader = document.createElement('div');
+        allHeader.className = 'px-3 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider';
+        allHeader.textContent = 'All Projects';
+        dropdown.appendChild(allHeader);
+      }
+
+      projects.forEach(project => {
+        dropdown.appendChild(createDropdownOption(project));
       });
       
       selectContainer.appendChild(dropdown);
@@ -865,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     
     // Set default input mode for the new entry
-    entryInputModes[newEntry.id] = 'percent';
+    entryInputModes[newEntry.id] = userDefaultInputMode;
     
     // Create updated entries list
     const updatedEntriesWithoutRemainder = entries.map(entry => {
@@ -1608,6 +1787,100 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // --- Settings Functions ---
+  function showSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    if (!modal) return;
+    // Pre-select the current setting
+    const radios = modal.querySelectorAll('input[name="settings-input-mode"]');
+    radios.forEach(radio => {
+      radio.checked = (radio.value === userDefaultInputMode);
+    });
+    modal.classList.remove('hidden');
+  }
+
+  async function saveSettings() {
+    const modal = document.getElementById('settings-modal');
+    const selected = modal.querySelector('input[name="settings-input-mode"]:checked');
+    if (!selected) return;
+
+    const newMode = selected.value;
+    const saveBtn = document.getElementById('settings-save-btn');
+    saveBtn.textContent = 'Saving...';
+    saveBtn.disabled = true;
+
+    try {
+        await fetch('/api/SaveUserSettings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ defaultInputMode: newMode })
+        });
+        userDefaultInputMode = newMode;
+        modal.classList.add('hidden');
+    } catch (err) {
+        console.error('Error saving settings:', err);
+    } finally {
+        saveBtn.textContent = 'Save';
+        saveBtn.disabled = false;
+    }
+  }
+
+  async function loadUserSettings() {
+    try {
+        const response = await fetch('/api/GetUserSettings');
+        if (response.ok) {
+            const settings = await response.json();
+            userDefaultInputMode = settings.defaultInputMode || 'percent';
+            console.log('Loaded user settings:', settings);
+        }
+    } catch (err) {
+        console.error('Error loading user settings:', err);
+    }
+  }
+
+  // Placeholder for admin page — implemented in Phase 3
+  function showAdminPage() {
+    document.getElementById('weekly-tracker').classList.add('hidden');
+    document.getElementById('reports-container').classList.add('hidden');
+    const adminContainer = document.getElementById('admin-container');
+    adminContainer.classList.remove('hidden');
+    createAdminPage();
+  }
+
+  // Load projects from API, falling back to static data/projectData.js
+  async function loadProjectsFromAPI() {
+    try {
+        const response = await fetch('/api/GetProjects');
+        if (response.ok) {
+            const apiProjects = await response.json();
+            if (apiProjects && apiProjects.length > 0) {
+                projects = apiProjects;
+                console.log(`Loaded ${projects.length} projects from API.`);
+                return;
+            }
+        }
+    } catch (err) {
+        console.warn('Failed to load projects from API, using static fallback:', err);
+    }
+    // Fallback: keep using window.projectData.projects (already assigned)
+    console.log('Using static project data as fallback.');
+  }
+
+  // Check if current user is an admin
+  async function checkAdminStatus() {
+    try {
+        const response = await fetch('/api/CheckAdmin');
+        if (response.ok) {
+            const data = await response.json();
+            isAdmin = data.isAdmin === true;
+            console.log('Admin status:', isAdmin);
+        }
+    } catch (err) {
+        console.error('Error checking admin status:', err);
+        isAdmin = false;
+    }
+  }
+
   // --- NEW: Authentication and Data Functions ---
   async function checkAuthStatus() {
     const weeklyTrackerContainer = document.getElementById('weekly-tracker'); // Get main content div
@@ -1625,8 +1898,10 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log("User info from checkAuthStatus:", userInfo);
 
         if (userInfo) {
+            // Load user settings, check admin status, and load projects in parallel
+            await Promise.all([loadUserSettings(), checkAdminStatus(), loadProjectsFromAPI()]);
             updateAuthUI(); // Update login/logout UI (handles showing user view)
-            await loadAllDataIntoCache(); // <<< CALL NEW FUNCTION HERE
+            await loadAllDataIntoCache();
             // weeklyTrackerContainer?.classList.remove('hidden'); // REMOVED: Already visible
         } else {
             updateAuthUI(); // Update UI to show login view
@@ -1760,7 +2035,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         allTimesheetDataCache = await response.json(); // Store the { "week": [...] } structure
         console.log(`Loaded ${Object.keys(allTimesheetDataCache).length} weeks into cache.`);
-        // After loading all data, populate the view for the *current* week
+        // Find the first unfilled week and navigate to it
+        currentWeek = findFirstUnfilledWeek();
         populateEntriesFromCache(formatWeekRange(currentWeek));
 
     } catch (err) {
@@ -1840,7 +2116,17 @@ document.addEventListener('DOMContentLoaded', function() {
       // If baseUsername is empty, formattedName remains empty
       
       userNameSpan.textContent = formattedName;
-      
+
+      // Show/hide admin link based on admin status
+      const adminLink = document.getElementById('admin-link');
+      if (adminLink) {
+        if (isAdmin) {
+          adminLink.classList.remove('hidden');
+        } else {
+          adminLink.classList.add('hidden');
+        }
+      }
+
     } else {
       // Logged out
       console.log("updateAuthUI: User is LOGGED OUT"); // DEBUG
