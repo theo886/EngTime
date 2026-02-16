@@ -2094,15 +2094,15 @@ document.addEventListener('DOMContentLoaded', function() {
             percentage: String(entry.Percentage), // Ensure string
             isManuallySet: false
         }));
+        manuallyEditedIds = new Set(); // Reset manual edits for cached weeks
         isSubmitted = true;
         isModified = false;
     } else {
         // No data in cache for this week, treat as new/empty
-        resetEntriesToDefault(); // Use the existing reset function
+        resetEntriesToDefault(); // Sets manuallyEditedIds with default entry
         isSubmitted = false;
         isModified = false;
     }
-    manuallyEditedIds = new Set(); // Always reset manual edits when navigating weeks
     entryInputModes = {}; // Reset input modes
     render(); // Render the UI with the populated/reset entries
   }
