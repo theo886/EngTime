@@ -1605,7 +1605,7 @@
     return label.substring(0, maxLen - 1) + '\u2026';
   }
 
-  function calcYtdBudgetHours(project) {
+  function calcYtdBudgetHours(project, startDate, endDate) {
     var now = new Date();
     var year = now.getFullYear();
     var quarterRanges = [
@@ -1615,14 +1615,16 @@
       { fte: project.budgetQ4 || 0, start: new Date(year, 9, 1),  end: new Date(year, 11, 31) }
     ];
 
-    // Find Monday of the current week (cutoff — only count fully completed weeks)
+    // Find Monday of the current week (absolute cutoff — never count beyond today's week)
     var today = new Date(year, now.getMonth(), now.getDate());
     var dayOfWeek = today.getDay();
     var mondayOfCurrentWeek = new Date(today);
     mondayOfCurrentWeek.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
 
-    var cutoffDate = mondayOfCurrentWeek;
-    var yearStart = new Date(year, 0, 1);
+    // Use selected date range, falling back to Jan 1 → current Monday
+    var yearStart = startDate ? new Date(startDate + 'T00:00:00') : new Date(year, 0, 1);
+    var endBound = endDate ? new Date(new Date(endDate + 'T00:00:00').getTime() + 86400000) : mondayOfCurrentWeek;
+    var cutoffDate = endBound < mondayOfCurrentWeek ? endBound : mondayOfCurrentWeek;
 
     var totalHours = 0;
     for (var i = 0; i < quarterRanges.length; i++) {
@@ -1743,6 +1745,8 @@
     // View toggle (Absolute Hours / % of Budget)
     let currentView = 'hours';
     let cachedAnalytics = null;
+    let cachedStartDate = null;
+    let cachedEndDate = null;
 
     const toggleRow = document.createElement('div');
     toggleRow.className = 'mb-4 flex items-center border border-gray-300 rounded-lg overflow-hidden shadow-sm w-fit';
@@ -1769,13 +1773,13 @@
     btnHours.addEventListener('click', () => {
       if (currentView === 'hours') return;
       setActiveToggle('hours');
-      if (cachedAnalytics) renderAnalyticsContent(analyticsContent, cachedAnalytics, currentView);
+      if (cachedAnalytics) renderAnalyticsContent(analyticsContent, cachedAnalytics, currentView, cachedStartDate, cachedEndDate);
     });
 
     btnPercent.addEventListener('click', () => {
       if (currentView === 'percent') return;
       setActiveToggle('percent');
-      if (cachedAnalytics) renderAnalyticsContent(analyticsContent, cachedAnalytics, currentView);
+      if (cachedAnalytics) renderAnalyticsContent(analyticsContent, cachedAnalytics, currentView, cachedStartDate, cachedEndDate);
     });
 
     toggleRow.appendChild(btnHours);
@@ -1829,7 +1833,9 @@
         if (!response.ok) throw new Error('Failed to load analytics');
         const analytics = await response.json();
         cachedAnalytics = analytics;
-        renderAnalyticsContent(analyticsContent, analytics, currentView);
+        cachedStartDate = startDate;
+        cachedEndDate = endDate;
+        renderAnalyticsContent(analyticsContent, analytics, currentView, startDate, endDate);
       } catch (err) {
         analyticsContent.textContent = '';
         const errDiv = document.createElement('div');
@@ -1855,7 +1861,7 @@
     await fetchAndRender();
   }
 
-  function renderAnalyticsContent(container, analytics, view) {
+  function renderAnalyticsContent(container, analytics, view, startDate, endDate) {
     // Destroy previous chart before clearing DOM to prevent memory leak
     if (analyticsChartInstance) {
       analyticsChartInstance.destroy();
@@ -1873,7 +1879,7 @@
 
     // Recalculate budget hours client-side for YTD
     analytics.forEach(function(p) {
-      p.budgetHours = calcYtdBudgetHours(p);
+      p.budgetHours = calcYtdBudgetHours(p, startDate, endDate);
       p.isOverBudget = p.actualHours > p.budgetHours;
       p.overBy = p.isOverBudget ? p.actualHours - p.budgetHours : 0;
     });
