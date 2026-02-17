@@ -1,3 +1,36 @@
 @tailwind base;
 @tailwind components;
-@tailwind utilities; 
+@tailwind utilities;
+
+/* Analytics: collapsible project cards */
+.project-card-body {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.3s ease;
+}
+.project-card-body.open {
+  max-height: 500px;
+  opacity: 1;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+.chevron-icon {
+  transition: transform 0.2s ease;
+}
+.chevron-icon.open {
+  transform: rotate(90deg);
+}
+
+/* Analytics: utilization mini-bars */
+.util-bar-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #F3F4F6;
+  overflow: hidden;
+}
+.util-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}

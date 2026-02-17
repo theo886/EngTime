@@ -1572,6 +1572,44 @@
   }
   // ====== ANALYTICS TAB ======
 
+  // --- Analytics helpers ---
+  function getUtilization(project) {
+    if (!project.budgetHours || project.budgetHours === 0) return 0;
+    return project.actualHours / project.budgetHours;
+  }
+
+  function getStatusColor(utilization) {
+    if (utilization > 1.0) return '#EF4444';   // red-500
+    if (utilization >= 0.8) return '#F59E0B';   // amber-500
+    return '#10B981';                            // emerald-500
+  }
+
+  function getStatusLabel(utilization) {
+    if (utilization > 1.0) return 'Over Budget';
+    if (utilization >= 0.8) return 'Approaching';
+    return 'On Track';
+  }
+
+  function sortProjectsByUtilization(data) {
+    return data.slice().sort(function(a, b) {
+      var utilA = getUtilization(a);
+      var utilB = getUtilization(b);
+      var aOver = utilA > 1.0 ? 1 : 0;
+      var bOver = utilB > 1.0 ? 1 : 0;
+      if (aOver !== bOver) return bOver - aOver;
+      return utilB - utilA;
+    });
+  }
+
+  function formatNumber(n) {
+    return n.toLocaleString('en-US', { maximumFractionDigits: 1 });
+  }
+
+  function truncateLabel(label, maxLen) {
+    if (label.length <= maxLen) return label;
+    return label.substring(0, maxLen - 1) + '\u2026';
+  }
+
   function getDateRangeFromPreset(preset) {
     if (preset === 'custom') return null;
 
@@ -1663,7 +1701,50 @@
     selectorRow.appendChild(customRow);
     contentEl.appendChild(selectorRow);
 
-    // Content area for charts/tables (below selector)
+    // View toggle (Absolute Hours / % of Budget)
+    let currentView = 'hours';
+    let cachedAnalytics = null;
+    let analyticsChartInstance = null;
+
+    const toggleRow = document.createElement('div');
+    toggleRow.className = 'mb-4 flex items-center border border-gray-300 rounded-lg overflow-hidden shadow-sm w-fit';
+
+    const btnHours = document.createElement('button');
+    btnHours.className = 'px-4 py-2 text-sm font-medium border-r border-gray-300 focus:outline-none transition-all duration-200 bg-slate-800 text-white';
+    btnHours.textContent = 'Absolute Hours';
+
+    const btnPercent = document.createElement('button');
+    btnPercent.className = 'px-4 py-2 text-sm font-medium focus:outline-none transition-all duration-200 bg-white text-slate-500 hover:bg-slate-50';
+    btnPercent.textContent = '% of Budget';
+
+    function setActiveToggle(view) {
+      currentView = view;
+      if (view === 'hours') {
+        btnHours.className = 'px-4 py-2 text-sm font-medium border-r border-gray-300 focus:outline-none transition-all duration-200 bg-slate-800 text-white';
+        btnPercent.className = 'px-4 py-2 text-sm font-medium focus:outline-none transition-all duration-200 bg-white text-slate-500 hover:bg-slate-50';
+      } else {
+        btnHours.className = 'px-4 py-2 text-sm font-medium border-r border-gray-300 focus:outline-none transition-all duration-200 bg-white text-slate-500 hover:bg-slate-50';
+        btnPercent.className = 'px-4 py-2 text-sm font-medium focus:outline-none transition-all duration-200 bg-slate-800 text-white';
+      }
+    }
+
+    btnHours.addEventListener('click', () => {
+      if (currentView === 'hours') return;
+      setActiveToggle('hours');
+      if (cachedAnalytics) renderAnalyticsContent(analyticsContent, cachedAnalytics, currentView);
+    });
+
+    btnPercent.addEventListener('click', () => {
+      if (currentView === 'percent') return;
+      setActiveToggle('percent');
+      if (cachedAnalytics) renderAnalyticsContent(analyticsContent, cachedAnalytics, currentView);
+    });
+
+    toggleRow.appendChild(btnHours);
+    toggleRow.appendChild(btnPercent);
+    contentEl.appendChild(toggleRow);
+
+    // Content area for charts/tables (below selector + toggle)
     const analyticsContent = document.createElement('div');
     contentEl.appendChild(analyticsContent);
 
@@ -1709,7 +1790,8 @@
         const response = await fetch(url);
         if (!response.ok) throw new Error('Failed to load analytics');
         const analytics = await response.json();
-        renderAnalyticsContent(analyticsContent, analytics);
+        cachedAnalytics = analytics;
+        renderAnalyticsContent(analyticsContent, analytics, currentView);
       } catch (err) {
         analyticsContent.textContent = '';
         const errDiv = document.createElement('div');
@@ -1735,10 +1817,15 @@
     await fetchAndRender();
   }
 
-  function renderAnalyticsContent(container, analytics) {
+  function renderAnalyticsContent(container, analytics, view) {
+    // Destroy previous chart before clearing DOM to prevent memory leak
+    if (analyticsChartInstance) {
+      analyticsChartInstance.destroy();
+      analyticsChartInstance = null;
+    }
     container.textContent = '';
 
-    if (analytics.length === 0) {
+    if (!analytics || analytics.length === 0) {
       const emptyDiv = document.createElement('div');
       emptyDiv.className = 'text-center py-8 text-slate-400';
       emptyDiv.textContent = 'No analytics data available for this date range.';
@@ -1746,188 +1833,452 @@
       return;
     }
 
-    // Chart container
-    const chartContainer = document.createElement('div');
-    chartContainer.className = 'mb-6';
-    chartContainer.style.height = '400px';
+    const sorted = sortProjectsByUtilization(analytics);
+    // Chart.js renders horizontal bars bottom-to-top, so reverse for display
+    const displayData = sorted.slice().reverse();
+
+    // --- Chart Card ---
+    const chartCard = document.createElement('div');
+    chartCard.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-6';
+    const chartWrap = document.createElement('div');
+    chartWrap.style.cssText = 'position:relative;width:100%;min-height:480px;';
     const canvas = document.createElement('canvas');
-    canvas.id = 'analytics-chart';
-    chartContainer.appendChild(canvas);
-    container.appendChild(chartContainer);
+    chartWrap.appendChild(canvas);
+    chartCard.appendChild(chartWrap);
+    container.appendChild(chartCard);
 
-    // Build chart data
-    const labels = analytics.map(p => p.projectName);
-    const budgetData = analytics.map(p => p.budgetHours);
-    const actualData = analytics.map(p => p.actualHours);
-    const barColors = analytics.map(p => p.isOverBudget ? '#EF4444' : '#6366F1');
+    if (view === 'hours') {
+      // Paired Budget (gray) + Actual (status-colored) bars
+      const labels = displayData.map(p => truncateLabel(p.projectName, 32));
+      const budgetValues = displayData.map(p => p.budgetHours);
+      const actualValues = displayData.map(p => p.actualHours);
+      const actualColors = displayData.map(p => getStatusColor(getUtilization(p)));
 
-    // Destroy existing chart if any
-    const existingChart = Chart.getChart(canvas);
-    if (existingChart) existingChart.destroy();
-
-    new Chart(canvas.getContext('2d'), {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Budget Hours',
-            data: budgetData,
-            backgroundColor: '#CBD5E1',
-            borderRadius: 4
-          },
-          {
-            label: 'Actual Hours',
-            data: actualData,
-            backgroundColor: barColors,
-            borderRadius: 4
-          }
-        ]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            beginAtZero: true,
-            title: { display: true, text: 'Hours' }
-          }
+      analyticsChartInstance = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Budget',
+              data: budgetValues,
+              backgroundColor: '#E5E7EB',
+              borderColor: '#D1D5DB',
+              borderWidth: 1,
+              borderRadius: 3,
+              barPercentage: 0.7,
+              categoryPercentage: 0.8,
+              order: 2
+            },
+            {
+              label: 'Actual',
+              data: actualValues,
+              backgroundColor: actualColors,
+              borderColor: actualColors.slice(),
+              borderWidth: 1,
+              borderRadius: 3,
+              barPercentage: 0.7,
+              categoryPercentage: 0.8,
+              order: 1
+            }
+          ]
         },
-        plugins: {
-          title: {
-            display: true,
-            text: 'Budget vs Actual Hours by Project',
-            font: { size: 16, weight: 'bold' }
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 600, easing: 'easeInOutQuart' },
+          layout: { padding: { right: 20 } },
+          scales: {
+            x: {
+              beginAtZero: true,
+              title: { display: true, text: 'Hours', font: { size: 12, weight: '500' }, color: '#6B7280' },
+              grid: { color: '#F3F4F6' },
+              ticks: { color: '#6B7280', font: { size: 11 } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: '#374151', font: { size: 12 } }
+            }
           },
-          legend: {
-            position: 'bottom'
-          },
-          tooltip: {
-            callbacks: {
-              afterBody: function(tooltipItems) {
-                const idx = tooltipItems[0].dataIndex;
-                const proj = analytics[idx];
-                if (proj.isOverBudget) {
-                  return 'Over budget by ' + proj.overBy + ' hours';
+          plugins: {
+            legend: {
+              position: 'top',
+              align: 'end',
+              labels: {
+                usePointStyle: true,
+                pointStyle: 'rectRounded',
+                padding: 12,
+                font: { size: 11 },
+                color: '#6B7280',
+                generateLabels: function(chart) {
+                  return [
+                    { text: 'Budget', fillStyle: '#E5E7EB', strokeStyle: '#D1D5DB', lineWidth: 1, pointStyle: 'rectRounded' },
+                    { text: 'Actual', fillStyle: '#6B7280', strokeStyle: '#6B7280', lineWidth: 1, pointStyle: 'rectRounded' }
+                  ];
                 }
-                return '';
+              }
+            },
+            tooltip: {
+              backgroundColor: '#1E293B',
+              titleFont: { size: 13, weight: '600' },
+              bodyFont: { size: 12 },
+              padding: 12,
+              cornerRadius: 8,
+              displayColors: true,
+              callbacks: {
+                title: function(items) {
+                  return displayData[items[0].dataIndex].projectName;
+                },
+                label: function(context) {
+                  return '  ' + context.dataset.label + ': ' + formatNumber(context.parsed.x) + ' hrs';
+                },
+                afterBody: function(items) {
+                  const p = displayData[items[0].dataIndex];
+                  const util = getUtilization(p);
+                  return ['', 'Utilization: ' + (util * 100).toFixed(1) + '% \u2014 ' + getStatusLabel(util)];
+                }
               }
             }
           }
         }
-      }
+      });
+    } else {
+      // % of Budget view — single dataset with 100% reference line
+      const labels = displayData.map(p => truncateLabel(p.projectName, 32));
+      const percentValues = displayData.map(p => getUtilization(p) * 100);
+      const barColors = displayData.map(p => getStatusColor(getUtilization(p)));
+      const maxVal = Math.max.apply(null, percentValues);
+
+      analyticsChartInstance = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '% of Budget',
+            data: percentValues,
+            backgroundColor: barColors,
+            borderColor: barColors.slice(),
+            borderWidth: 1,
+            borderRadius: 3,
+            barPercentage: 0.55,
+            categoryPercentage: 0.8
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 600, easing: 'easeInOutQuart' },
+          layout: { padding: { top: 20, right: 20 } },
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: Math.ceil(maxVal / 20) * 20 + 10,
+              title: { display: true, text: '% of Budget', font: { size: 12, weight: '500' }, color: '#6B7280' },
+              grid: { color: '#F3F4F6' },
+              ticks: {
+                color: '#6B7280',
+                font: { size: 11 },
+                callback: function(value) { return value + '%'; }
+              }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: '#374151', font: { size: 12 } }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1E293B',
+              titleFont: { size: 13, weight: '600' },
+              bodyFont: { size: 12 },
+              padding: 12,
+              cornerRadius: 8,
+              displayColors: false,
+              callbacks: {
+                title: function(items) {
+                  return displayData[items[0].dataIndex].projectName;
+                },
+                label: function(context) {
+                  const p = displayData[context.dataIndex];
+                  const util = getUtilization(p);
+                  return [
+                    'Utilization: ' + (util * 100).toFixed(1) + '%',
+                    'Actual: ' + formatNumber(p.actualHours) + ' hrs',
+                    'Budget: ' + formatNumber(p.budgetHours) + ' hrs',
+                    'Status: ' + getStatusLabel(util)
+                  ];
+                }
+              }
+            }
+          }
+        },
+        plugins: [{
+          id: 'budgetReferenceLine',
+          afterDraw: function(chartInstance) {
+            const xScale = chartInstance.scales.x;
+            if (xScale.max < 100) return; // reference line would be off-screen
+            const yScale = chartInstance.scales.y;
+            const ctx = chartInstance.ctx;
+            const xPos = xScale.getPixelForValue(100);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = '#4B5563';
+            ctx.lineWidth = 1.5;
+            ctx.moveTo(xPos, yScale.top);
+            ctx.lineTo(xPos, yScale.bottom);
+            ctx.stroke();
+
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#4B5563';
+            ctx.font = '500 11px Inter, system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('100% Budget', xPos, yScale.top - 8);
+            ctx.restore();
+          }
+        }]
+      });
+    }
+
+    // --- Project Breakdown Table ---
+    const breakdownContainer = document.createElement('div');
+    breakdownContainer.className = 'mt-4';
+    container.appendChild(breakdownContainer);
+
+    // Group projects by status
+    const overProjects = [];
+    const approachingProjects = [];
+    const onTrackProjects = [];
+
+    sorted.forEach(function(p) {
+      const util = getUtilization(p);
+      if (util > 1.0) overProjects.push(p);
+      else if (util >= 0.8) approachingProjects.push(p);
+      else onTrackProjects.push(p);
     });
 
-    // Over-budget detail table
-    const overBudgetProjects = analytics.filter(p => p.isOverBudget);
-    if (overBudgetProjects.length > 0) {
-      const sectionTitle = document.createElement('h4');
-      sectionTitle.className = 'text-lg font-bold text-red-600 mt-6 mb-3';
-      sectionTitle.textContent = 'Over-Budget Projects';
-      container.appendChild(sectionTitle);
+    const groups = [
+      { label: 'Over Budget', projects: overProjects, color: '#EF4444', borderClass: 'border-red-200', textClass: 'text-red-600', badgeBg: '#FEE2E2', tagBg: '#FEF2F2' },
+      { label: 'Approaching Budget', projects: approachingProjects, color: '#F59E0B', borderClass: 'border-amber-200', textClass: 'text-amber-600', badgeBg: '#FEF3C7', tagBg: '#FFFBEB' },
+      { label: 'On Track', projects: onTrackProjects, color: '#10B981', borderClass: 'border-emerald-200', textClass: 'text-emerald-600', badgeBg: '#D1FAE5', tagBg: '#ECFDF5' }
+    ];
 
-      overBudgetProjects.forEach(proj => {
-        const section = document.createElement('div');
-        section.className = 'mb-3 border border-red-200 rounded-lg overflow-hidden';
+    groups.forEach(function(group) {
+      if (group.projects.length === 0) return;
 
+      // Section header
+      const sectionHeader = document.createElement('div');
+      sectionHeader.className = 'flex items-center gap-2 mt-5 mb-2';
+
+      const dot = document.createElement('span');
+      dot.style.cssText = 'display:inline-block;width:10px;height:10px;border-radius:50%;background-color:' + group.color;
+      sectionHeader.appendChild(dot);
+
+      const sectionTitle = document.createElement('span');
+      sectionTitle.className = 'text-sm font-semibold ' + group.textClass;
+      sectionTitle.textContent = group.label;
+      sectionHeader.appendChild(sectionTitle);
+
+      const countBadge = document.createElement('span');
+      countBadge.className = 'text-xs font-medium px-2 py-0.5 rounded-full';
+      countBadge.style.backgroundColor = group.badgeBg;
+      countBadge.style.color = group.color;
+      countBadge.textContent = group.projects.length;
+      sectionHeader.appendChild(countBadge);
+
+      breakdownContainer.appendChild(sectionHeader);
+
+      // Project cards
+      group.projects.forEach(function(project) {
+        const util = getUtilization(project);
+        const utilPct = (util * 100).toFixed(1);
+
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-lg border ' + group.borderClass + ' mb-2 overflow-hidden';
+        card.style.cssText = 'border-left-width:3px;border-left-color:' + group.color + ';transition:all 0.15s ease;';
+
+        // Card header
         const header = document.createElement('div');
-        header.className = 'px-4 py-3 bg-red-50 flex justify-between items-center cursor-pointer';
+        header.className = 'flex items-center justify-between px-4 py-3 cursor-pointer select-none';
 
         const headerLeft = document.createElement('div');
-        const projName = document.createElement('span');
-        projName.className = 'font-medium';
-        projName.textContent = proj.projectName;
-        const overLabel = document.createElement('span');
-        overLabel.className = 'ml-2 text-sm text-red-500';
-        overLabel.textContent = '+' + proj.overBy + ' hrs over';
-        headerLeft.appendChild(projName);
-        headerLeft.appendChild(overLabel);
+        headerLeft.className = 'flex items-center gap-3 min-w-0 flex-1';
 
-        const headerRight = document.createElement('span');
-        headerRight.className = 'text-sm text-slate-500';
-        headerRight.textContent = proj.actualHours + ' / ' + proj.budgetHours + ' hrs';
+        const chevron = document.createElement('span');
+        chevron.className = 'chevron-icon text-gray-400 text-xs flex-shrink-0';
+        chevron.textContent = '\u25B6';
+        headerLeft.appendChild(chevron);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'text-sm font-medium text-gray-800 truncate';
+        nameSpan.textContent = project.projectName;
+        headerLeft.appendChild(nameSpan);
+
+        // Over-budget tag
+        if (project.overBy > 0) {
+          const overTag = document.createElement('span');
+          overTag.className = 'flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full';
+          overTag.style.backgroundColor = group.tagBg;
+          overTag.style.color = group.color;
+          overTag.textContent = '+' + formatNumber(project.overBy) + ' hrs over';
+          headerLeft.appendChild(overTag);
+        }
+
+        const headerRight = document.createElement('div');
+        headerRight.className = 'flex items-center gap-4 flex-shrink-0 ml-4';
+
+        // Utilization mini bar
+        const barWrap = document.createElement('div');
+        barWrap.className = 'hidden sm:block';
+        barWrap.style.width = '80px';
+        const barTrack = document.createElement('div');
+        barTrack.className = 'util-bar-track';
+        const barFill = document.createElement('div');
+        barFill.className = 'util-bar-fill';
+        barFill.style.width = Math.min(util * 100, 100) + '%';
+        barFill.style.backgroundColor = group.color;
+        barTrack.appendChild(barFill);
+        barWrap.appendChild(barTrack);
+        headerRight.appendChild(barWrap);
+
+        // Hours text
+        const hoursText = document.createElement('span');
+        hoursText.className = 'text-sm text-gray-500 whitespace-nowrap';
+        hoursText.textContent = formatNumber(project.actualHours) + ' / ' + formatNumber(project.budgetHours) + ' hrs';
+        headerRight.appendChild(hoursText);
+
+        // Utilization badge
+        const utilBadge = document.createElement('span');
+        utilBadge.className = 'text-xs font-semibold whitespace-nowrap';
+        utilBadge.style.color = group.color;
+        utilBadge.textContent = utilPct + '%';
+        headerRight.appendChild(utilBadge);
 
         header.appendChild(headerLeft);
         header.appendChild(headerRight);
 
+        // Card body (expandable)
         const body = document.createElement('div');
-        body.className = 'px-4 py-2 hidden';
+        body.className = 'project-card-body px-4 border-t ' + group.borderClass;
 
-        // User breakdown table
-        const userTable = document.createElement('table');
-        userTable.className = 'w-full text-sm';
-
-        const utHead = document.createElement('thead');
-        const utHeaderRow = document.createElement('tr');
-        utHeaderRow.className = 'text-left text-slate-500';
-        ['User', 'Hours'].forEach(text => {
-          const th = document.createElement('th');
-          th.className = 'py-1 px-2';
-          th.textContent = text;
-          utHeaderRow.appendChild(th);
+        const users = (project.userBreakdown || []).slice().sort(function(a, b) {
+          return b.totalHours - a.totalHours;
         });
-        utHead.appendChild(utHeaderRow);
-        userTable.appendChild(utHead);
 
-        const utBody = document.createElement('tbody');
-        proj.userBreakdown.forEach(user => {
+        const table = document.createElement('table');
+        table.className = 'w-full text-sm';
+
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        headRow.className = 'text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+        ['Engineer', 'Hours', '% of Project'].forEach(function(text) {
+          const th = document.createElement('th');
+          th.className = 'py-1.5 px-2';
+          if (text !== 'Engineer') th.className += ' text-right';
+          th.textContent = text;
+          headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        users.forEach(function(u) {
           const tr = document.createElement('tr');
-          tr.className = 'border-t';
+          tr.className = 'border-t border-gray-100';
 
-          const emailTd = document.createElement('td');
-          emailTd.className = 'py-1 px-2';
-          emailTd.textContent = user.displayName || user.userEmail;
-          if (user.displayName) {
-            emailTd.title = user.userEmail;
-          }
+          const nameTd = document.createElement('td');
+          nameTd.className = 'py-1.5 px-2 text-gray-700';
+          nameTd.textContent = u.displayName || u.userEmail;
+          if (u.displayName && u.userEmail) nameTd.title = u.userEmail;
 
           const hoursTd = document.createElement('td');
-          hoursTd.className = 'py-1 px-2';
-          hoursTd.textContent = user.totalHours;
+          hoursTd.className = 'py-1.5 px-2 text-right font-medium text-gray-800';
+          hoursTd.textContent = formatNumber(u.totalHours);
 
-          tr.appendChild(emailTd);
+          const sharePct = project.actualHours > 0 ? (u.totalHours / project.actualHours * 100) : 0;
+          const shareTd = document.createElement('td');
+          shareTd.className = 'py-1.5 px-2 text-right text-gray-500';
+          shareTd.textContent = sharePct.toFixed(0) + '%';
+
+          tr.appendChild(nameTd);
           tr.appendChild(hoursTd);
-          utBody.appendChild(tr);
+          tr.appendChild(shareTd);
+          tbody.appendChild(tr);
         });
-        userTable.appendChild(utBody);
-        body.appendChild(userTable);
+        table.appendChild(tbody);
+        body.appendChild(table);
 
-        header.addEventListener('click', () => {
-          body.classList.toggle('hidden');
+        // Toggle expand/collapse
+        header.addEventListener('click', function() {
+          body.classList.toggle('open');
+          chevron.classList.toggle('open');
         });
 
-        section.appendChild(header);
-        section.appendChild(body);
-        container.appendChild(section);
+        card.appendChild(header);
+        card.appendChild(body);
+        breakdownContainer.appendChild(card);
       });
+    });
+
+    // --- Summary Stats Bar ---
+    const summaryBar = document.createElement('div');
+    summaryBar.className = 'mt-4 bg-white rounded-lg shadow-sm border border-gray-200 px-5 py-3';
+    const summaryInner = document.createElement('div');
+    summaryInner.className = 'flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-gray-600';
+
+    let overCount = 0, approachCount = 0, trackCount = 0, totalActual = 0, totalBudget = 0;
+    sorted.forEach(function(p) {
+      const util = getUtilization(p);
+      if (util > 1.0) overCount++;
+      else if (util >= 0.8) approachCount++;
+      else trackCount++;
+      totalActual += p.actualHours;
+      totalBudget += p.budgetHours;
+    });
+
+    function createStatItem(dotColor, count, label) {
+      const span = document.createElement('span');
+      span.className = 'flex items-center';
+      const dot = document.createElement('span');
+      dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background-color:' + dotColor;
+      span.appendChild(dot);
+      const num = document.createElement('span');
+      num.className = 'font-medium text-gray-800';
+      num.textContent = count;
+      span.appendChild(num);
+      span.appendChild(document.createTextNode('\u00A0' + label));
+      return span;
     }
 
-    // Summary for on-budget projects
-    const onBudgetProjects = analytics.filter(p => !p.isOverBudget && p.budgetHours > 0);
-    if (onBudgetProjects.length > 0) {
-      const sectionTitle = document.createElement('h4');
-      sectionTitle.className = 'text-lg font-bold text-green-600 mt-6 mb-3';
-      sectionTitle.textContent = 'On-Budget Projects';
-      container.appendChild(sectionTitle);
+    summaryInner.appendChild(createStatItem('#EF4444', overCount, 'over budget'));
+    summaryInner.appendChild(createStatItem('#F59E0B', approachCount, 'approaching'));
+    summaryInner.appendChild(createStatItem('#10B981', trackCount, 'on track'));
 
-      onBudgetProjects.forEach(proj => {
-        const row = document.createElement('div');
-        row.className = 'flex justify-between items-center py-2 px-4 border-b';
+    const divider = document.createElement('span');
+    divider.className = 'text-gray-400';
+    divider.textContent = '|';
+    summaryInner.appendChild(divider);
 
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'text-sm';
-        nameSpan.textContent = proj.projectName;
+    const totals = document.createElement('span');
+    totals.appendChild(document.createTextNode('Total: '));
+    const actualSpan = document.createElement('span');
+    actualSpan.className = 'font-medium text-gray-800';
+    actualSpan.textContent = formatNumber(totalActual);
+    totals.appendChild(actualSpan);
+    totals.appendChild(document.createTextNode(' actual / '));
+    const budgetSpan = document.createElement('span');
+    budgetSpan.className = 'font-medium text-gray-800';
+    budgetSpan.textContent = formatNumber(totalBudget);
+    totals.appendChild(budgetSpan);
+    totals.appendChild(document.createTextNode(' budget hrs'));
+    summaryInner.appendChild(totals);
 
-        const statsSpan = document.createElement('span');
-        statsSpan.className = 'text-sm text-slate-500';
-        statsSpan.textContent = proj.actualHours + ' / ' + proj.budgetHours + ' hrs';
-
-        row.appendChild(nameSpan);
-        row.appendChild(statsSpan);
-        container.appendChild(row);
-      });
-    }
+    summaryBar.appendChild(summaryInner);
+    container.appendChild(summaryBar);
   }
 
 })();
