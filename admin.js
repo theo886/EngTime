@@ -1574,8 +1574,15 @@
 
   // --- Analytics helpers ---
   function getUtilization(project) {
-    if (!project.budgetHours || project.budgetHours === 0) return 0;
+    if (!project.budgetHours || project.budgetHours === 0) {
+      return project.actualHours > 0 ? Infinity : 0;
+    }
     return project.actualHours / project.budgetHours;
+  }
+
+  function formatUtilPct(utilization) {
+    if (!isFinite(utilization)) return 'No Budget';
+    return (utilization * 100).toFixed(1) + '%';
   }
 
   function getStatusColor(utilization) {
@@ -1987,7 +1994,7 @@
                 afterBody: function(items) {
                   const p = displayData[items[0].dataIndex];
                   const util = getUtilization(p);
-                  return ['', 'Utilization: ' + (util * 100).toFixed(1) + '% \u2014 ' + getStatusLabel(util)];
+                  return ['', 'Utilization: ' + formatUtilPct(util) + ' \u2014 ' + getStatusLabel(util)];
                 }
               }
             }
@@ -1997,7 +2004,10 @@
     } else {
       // % of Budget view — single dataset with 100% reference line
       const labels = displayData.map(p => truncateLabel(p.projectName, 32));
-      const percentValues = displayData.map(p => getUtilization(p) * 100);
+      const rawPctValues = displayData.map(p => getUtilization(p) * 100);
+      const finitePcts = rawPctValues.filter(v => isFinite(v));
+      const capValue = finitePcts.length > 0 ? Math.max.apply(null, finitePcts) * 1.2 : 200;
+      const percentValues = rawPctValues.map(v => isFinite(v) ? v : Math.max(capValue, 200));
       const barColors = displayData.map(p => getStatusColor(getUtilization(p)));
       const maxVal = Math.max.apply(null, percentValues);
 
@@ -2056,7 +2066,7 @@
                   const p = displayData[context.dataIndex];
                   const util = getUtilization(p);
                   return [
-                    'Utilization: ' + (util * 100).toFixed(1) + '%',
+                    'Utilization: ' + formatUtilPct(util),
                     'Actual: ' + formatNumber(p.actualHours) + ' hrs',
                     'Budget: ' + formatNumber(p.budgetHours) + ' hrs',
                     'Status: ' + getStatusLabel(util)
@@ -2146,7 +2156,7 @@
       // Project cards
       group.projects.forEach(function(project) {
         const util = getUtilization(project);
-        const utilPct = (util * 100).toFixed(1);
+        const utilPct = formatUtilPct(util);
 
         const card = document.createElement('div');
         card.className = 'bg-white rounded-lg border ' + group.borderClass + ' mb-2 overflow-hidden';
@@ -2206,7 +2216,7 @@
         const utilBadge = document.createElement('span');
         utilBadge.className = 'text-xs font-semibold whitespace-nowrap';
         utilBadge.style.color = group.color;
-        utilBadge.textContent = utilPct + '%';
+        utilBadge.textContent = utilPct;
         headerRight.appendChild(utilBadge);
 
         header.appendChild(headerLeft);
