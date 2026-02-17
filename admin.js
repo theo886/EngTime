@@ -1610,6 +1610,8 @@
     return label.substring(0, maxLen - 1) + '\u2026';
   }
 
+  let analyticsChartInstance = null;
+
   function getDateRangeFromPreset(preset) {
     if (preset === 'custom') return null;
 
@@ -1704,7 +1706,6 @@
     // View toggle (Absolute Hours / % of Budget)
     let currentView = 'hours';
     let cachedAnalytics = null;
-    let analyticsChartInstance = null;
 
     const toggleRow = document.createElement('div');
     toggleRow.className = 'mb-4 flex items-center border border-gray-300 rounded-lg overflow-hidden shadow-sm w-fit';
