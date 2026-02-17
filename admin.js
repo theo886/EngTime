@@ -1590,14 +1590,9 @@
     return 'On Track';
   }
 
-  function sortProjectsByUtilization(data) {
+  function sortProjectsByHours(data) {
     return data.slice().sort(function(a, b) {
-      var utilA = getUtilization(a);
-      var utilB = getUtilization(b);
-      var aOver = utilA > 1.0 ? 1 : 0;
-      var bOver = utilB > 1.0 ? 1 : 0;
-      if (aOver !== bOver) return bOver - aOver;
-      return utilB - utilA;
+      return b.actualHours - a.actualHours;
     });
   }
 
@@ -1608,6 +1603,48 @@
   function truncateLabel(label, maxLen) {
     if (label.length <= maxLen) return label;
     return label.substring(0, maxLen - 1) + '\u2026';
+  }
+
+  function calcYtdBudgetHours(project) {
+    var now = new Date();
+    var year = now.getFullYear();
+    var quarterRanges = [
+      { fte: project.budgetQ1 || 0, start: new Date(year, 0, 1),  end: new Date(year, 2, 31) },
+      { fte: project.budgetQ2 || 0, start: new Date(year, 3, 1),  end: new Date(year, 5, 30) },
+      { fte: project.budgetQ3 || 0, start: new Date(year, 6, 1),  end: new Date(year, 8, 30) },
+      { fte: project.budgetQ4 || 0, start: new Date(year, 9, 1),  end: new Date(year, 11, 31) }
+    ];
+
+    // Find Monday of the current week (cutoff — only count fully completed weeks)
+    var today = new Date(year, now.getMonth(), now.getDate());
+    var dayOfWeek = today.getDay();
+    var mondayOfCurrentWeek = new Date(today);
+    mondayOfCurrentWeek.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
+
+    var cutoffDate = mondayOfCurrentWeek;
+    var yearStart = new Date(year, 0, 1);
+
+    var totalHours = 0;
+    for (var i = 0; i < quarterRanges.length; i++) {
+      var q = quarterRanges[i];
+      if (q.fte === 0) continue;
+      // Effective range for this quarter within the YTD window
+      var rangeStart = q.start < yearStart ? yearStart : q.start;
+      var rangeEnd = q.end >= cutoffDate ? cutoffDate : new Date(q.end.getTime() + 86400000);
+      if (rangeStart >= rangeEnd) continue;
+
+      // Count Mondays in [rangeStart, rangeEnd) — each Monday = one completed week
+      var d = new Date(rangeStart);
+      var dow = d.getDay();
+      if (dow !== 1) d.setDate(d.getDate() + ((8 - dow) % 7));
+      var weeks = 0;
+      while (d < rangeEnd) {
+        weeks++;
+        d.setDate(d.getDate() + 7);
+      }
+      totalHours += weeks * q.fte * 40;
+    }
+    return totalHours;
   }
 
   let analyticsChartInstance = null;
@@ -1834,7 +1871,14 @@
       return;
     }
 
-    const sorted = sortProjectsByUtilization(analytics);
+    // Recalculate budget hours client-side for YTD
+    analytics.forEach(function(p) {
+      p.budgetHours = calcYtdBudgetHours(p);
+      p.isOverBudget = p.actualHours > p.budgetHours;
+      p.overBy = p.isOverBudget ? p.actualHours - p.budgetHours : 0;
+    });
+
+    const sorted = sortProjectsByHours(analytics);
     // Chart.js renders horizontal bars bottom-to-top, so reverse for display
     const displayData = sorted.slice().reverse();
 
