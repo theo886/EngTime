@@ -1594,7 +1594,7 @@
   function getStatusLabel(utilization) {
     if (utilization > 1.0) return 'Over Budget';
     if (utilization >= 0.8) return 'Approaching';
-    return 'On Track';
+    return 'Under Budget';
   }
 
   function sortProjectsByHours(data) {
@@ -2004,10 +2004,10 @@
     } else {
       // % of Budget view — single dataset with 100% reference line
       const labels = displayData.map(p => truncateLabel(p.projectName, 32));
-      const rawPctValues = displayData.map(p => getUtilization(p) * 100);
-      const finitePcts = rawPctValues.filter(v => isFinite(v));
-      const capValue = finitePcts.length > 0 ? Math.max.apply(null, finitePcts) * 1.2 : 200;
-      const percentValues = rawPctValues.map(v => isFinite(v) ? v : Math.max(capValue, 200));
+      const percentValues = displayData.map(p => {
+        const util = getUtilization(p);
+        return isFinite(util) ? util * 100 : 0;
+      });
       const barColors = displayData.map(p => getStatusColor(getUtilization(p)));
       const maxVal = Math.max.apply(null, percentValues);
 
@@ -2125,7 +2125,7 @@
     const groups = [
       { label: 'Over Budget', projects: overProjects, color: '#EF4444', borderClass: 'border-red-200', textClass: 'text-red-600', badgeBg: '#FEE2E2', tagBg: '#FEF2F2' },
       { label: 'Approaching Budget', projects: approachingProjects, color: '#F59E0B', borderClass: 'border-amber-200', textClass: 'text-amber-600', badgeBg: '#FEF3C7', tagBg: '#FFFBEB' },
-      { label: 'On Track', projects: onTrackProjects, color: '#10B981', borderClass: 'border-emerald-200', textClass: 'text-emerald-600', badgeBg: '#D1FAE5', tagBg: '#ECFDF5' }
+      { label: 'Under Budget', projects: onTrackProjects, color: '#10B981', borderClass: 'border-emerald-200', textClass: 'text-emerald-600', badgeBg: '#D1FAE5', tagBg: '#ECFDF5' }
     ];
 
     groups.forEach(function(group) {
@@ -2317,7 +2317,7 @@
 
     summaryInner.appendChild(createStatItem('#EF4444', overCount, 'over budget'));
     summaryInner.appendChild(createStatItem('#F59E0B', approachCount, 'approaching'));
-    summaryInner.appendChild(createStatItem('#10B981', trackCount, 'on track'));
+    summaryInner.appendChild(createStatItem('#10B981', trackCount, 'under budget'));
 
     const divider = document.createElement('span');
     divider.className = 'text-gray-400';
