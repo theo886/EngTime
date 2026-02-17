@@ -1939,6 +1939,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Placeholder for admin page — implemented in Phase 3
   function showAdminPage() {
+    if (!isAdmin) return;
     document.getElementById('weekly-tracker').classList.add('hidden');
     document.getElementById('reports-container').classList.add('hidden');
     const adminContainer = document.getElementById('admin-container');
@@ -2263,8 +2264,10 @@ document.addEventListener('DOMContentLoaded', function() {
       if (adminLink) {
         if (isAdmin) {
           adminLink.classList.remove('hidden');
+          adminLink.style.display = '';
         } else {
           adminLink.classList.add('hidden');
+          adminLink.style.display = 'none';
         }
       }
 
@@ -2289,6 +2292,11 @@ document.addEventListener('DOMContentLoaded', function() {
           userNameSpan.textContent = 'User'; // Reset placeholder
       } else {
           console.error("updateAuthUI: userNameSpan not found!"); // DEBUG
+      }
+      const adminLink = document.getElementById('admin-link');
+      if (adminLink) {
+        adminLink.classList.add('hidden');
+        adminLink.style.display = 'none';
       }
     }
   }
