@@ -1,3 +1,4 @@
+const axios = require('axios');
 const { createTableClient, getUserInfo, isAdmin, ensureUser, isAllowedDomain } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
@@ -81,6 +82,42 @@ module.exports = async function (context, req) {
         if (upsertBatch.length > 0) {
             await tableClient.submitTransaction(upsertBatch);
             context.log(`Upserted ${upsertBatch.length} entries for user ${targetUserId}, week ${week}.`);
+        }
+
+        // Step 3: Trigger Power Automate
+        const powerAutomateUrl = process.env.POWER_AUTOMATE_SAVE_URL;
+        if (powerAutomateUrl) {
+            const entriesWithHours = validEntries.map(entry => {
+                const percentage = parseInt(entry.percentage);
+                const hours = parseFloat((percentage * 0.4).toFixed(1));
+                return {
+                    projectId: entry.projectId,
+                    projectName: entry.projectName || 'Unknown Project',
+                    percentage: percentage,
+                    hours: hours
+                };
+            });
+            const excelPayload = {
+                userId: targetUserId,
+                userEmail: targetUserEmail || '',
+                week: week,
+                weekStartDate: WeekStartDate || week.split(' - ')[0],
+                dateSubmitted: dateSubmitted.toISOString(),
+                entries: entriesWithHours
+            };
+
+            axios.post(powerAutomateUrl, excelPayload)
+                .then(response => {
+                    context.log(`Successfully triggered Power Automate for admin edit. Status: ${response.status}`);
+                })
+                .catch(paError => {
+                    context.log.error('Error triggering Power Automate flow:', paError.message);
+                    if (paError.response) {
+                        context.log.error('Power Automate Error Response:', paError.response.data);
+                    }
+                });
+        } else {
+            context.log.warn('POWER_AUTOMATE_SAVE_URL not set. Skipping Power Automate trigger.');
         }
 
         context.res = {
