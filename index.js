@@ -2027,10 +2027,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 userMsg.textContent = 'You are signed in as ' + (userInfo.userDetails || 'unknown') + '.';
 
                 const logoutLink = document.createElement('a');
-                logoutLink.href = '/.auth/login/aad';
-                logoutLink.style.cssText = 'padding:0.5rem 1.5rem;background:#2563eb;color:white;border-radius:0.375rem;text-decoration:none;font-weight:500;';
+                logoutLink.href = '#';
+                logoutLink.style.cssText = 'padding:0.5rem 1.5rem;background:#2563eb;color:white;border-radius:0.375rem;text-decoration:none;font-weight:500;cursor:pointer;';
                 logoutLink.textContent = 'Sign in with a different account';
-                logoutLink.addEventListener('click', () => localStorage.removeItem('engtime_logged_out'));
+                logoutLink.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    localStorage.setItem('engtime_logged_out', 'true');
+                    window.location.href = '/.auth/logout?post_logout_redirect_uri=/';
+                });
 
                 wrapper.appendChild(heading);
                 wrapper.appendChild(msg);
