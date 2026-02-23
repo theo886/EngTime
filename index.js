@@ -363,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function() {
                       </svg>
                       Settings
                     </a>
-                    <a href="/.auth/logout?post_logout_redirect_uri=/" id="logout-button" class="flex items-center">
+                    <a href="#" id="logout-button" class="flex items-center">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                         <polyline points="16 17 21 12 16 7"></polyline>
@@ -502,9 +502,14 @@ document.addEventListener('DOMContentLoaded', function() {
              }
         });
     }
-    // Note: Logout is handled by the href in createInitialHTML
-    // const logoutButton = document.getElementById('logout-button');
-    // if (logoutButton) { ... }
+    const logoutButton = document.getElementById('logout-button');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', async function(e) {
+            e.preventDefault();
+            await fetch('/.auth/logout');
+            window.location.href = 'https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=' + encodeURIComponent(window.location.origin);
+        });
+    }
 
     // --- Other Buttons ---
     document.getElementById('prev-week-button').addEventListener('click', goToPreviousWeek);
