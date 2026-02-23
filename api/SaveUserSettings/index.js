@@ -1,10 +1,12 @@
-const { createTableClient, getUserInfo, ensureUser, isAllowedDomain } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, getUserEmail, ensureUser, isAllowedDomain } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('SaveUserSettings function processing request.');
 
     const clientPrincipal = getUserInfo(req);
-    if (!clientPrincipal || !clientPrincipal.userId) {
+    const userEmail = getUserEmail(clientPrincipal);
+
+    if (!clientPrincipal || !userEmail) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
@@ -16,10 +18,8 @@ module.exports = async function (context, req) {
 
     await ensureUser(req);
 
-    const userId = clientPrincipal.userId;
     const { defaultInputMode } = req.body || {};
 
-    // Validate
     const validModes = ["percent", "hours"];
     if (!defaultInputMode || !validModes.includes(defaultInputMode)) {
         context.res = { status: 400, body: "Invalid request. 'defaultInputMode' must be 'percent' or 'hours'." };
@@ -30,7 +30,7 @@ module.exports = async function (context, req) {
         const usersClient = createTableClient("users");
         const entity = {
             partitionKey: "users",
-            rowKey: userId,
+            rowKey: userEmail,
             defaultInputMode: defaultInputMode
         };
 

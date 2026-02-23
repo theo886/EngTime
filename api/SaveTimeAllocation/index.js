@@ -1,4 +1,4 @@
-const { createTableClient, getUserInfo, ensureUser, isAllowedDomain } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, getUserEmail, ensureUser, isAllowedDomain } = require("../shared/tableClient");
 const axios = require('axios');
 
 module.exports = async function (context, req) {
@@ -7,8 +7,9 @@ module.exports = async function (context, req) {
     const tableClient = createTableClient("engtime");
 
     const clientPrincipal = getUserInfo(req);
+    const userEmail = getUserEmail(clientPrincipal);
 
-    if (!clientPrincipal || !clientPrincipal.userId) {
+    if (!clientPrincipal || !userEmail) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
@@ -20,12 +21,11 @@ module.exports = async function (context, req) {
 
     await ensureUser(req);
 
-    const userId = clientPrincipal.userId;
-    const { week, userEmail, WeekStartDate, entries } = req.body;
+    const { week, WeekStartDate, entries } = req.body;
     const dateSubmitted = new Date();
 
-    if (!week || !userEmail || !Array.isArray(entries)) {
-        context.res = { status: 400, body: "Invalid request body. Expecting 'week', 'userEmail', and 'entries' array." };
+    if (!week || !Array.isArray(entries)) {
+        context.res = { status: 400, body: "Invalid request body. Expecting 'week' and 'entries' array." };
         return;
     }
 
@@ -33,12 +33,12 @@ module.exports = async function (context, req) {
         // Step 1: Find existing entities for this user and week
         const existingEntities = [];
         const entitiesToDelete = tableClient.listEntities({
-            queryOptions: { filter: `PartitionKey eq '${userId}' and week eq '${week}'` }
+            queryOptions: { filter: `PartitionKey eq '${userEmail}' and week eq '${week}'` }
         });
         for await (const entity of entitiesToDelete) {
             existingEntities.push({ partitionKey: entity.partitionKey, rowKey: entity.rowKey });
         }
-        context.log(`Found ${existingEntities.length} existing entities for user ${userId}, week ${week} to delete.`);
+        context.log(`Found ${existingEntities.length} existing entities for user ${userEmail}, week ${week} to delete.`);
 
         // Step 2: DELETE batch transaction
         if (existingEntities.length > 0) {
@@ -63,9 +63,9 @@ module.exports = async function (context, req) {
             const rowKey = `${weekStartDateClean}_${entry.projectId}`;
 
             const newEntity = {
-                partitionKey: userId,
+                partitionKey: userEmail,
                 rowKey: rowKey,
-                userId: userId,
+                userId: userEmail,
                 week: week,
                 weekStartDate: WeekStartDate || week.split(' - ')[0],
                 projectId: entry.projectId,
@@ -87,6 +87,7 @@ module.exports = async function (context, req) {
         }
 
         // Step 4: Trigger Power Automate
+        // NOTE: userId field NAME stays the same (Power Automate contract), VALUE is now email
         const powerAutomateUrl = process.env.POWER_AUTOMATE_SAVE_URL;
         if (powerAutomateUrl) {
              const entriesWithHours = validEntries.map(entry => {
@@ -100,8 +101,8 @@ module.exports = async function (context, req) {
                  };
              });
              const excelPayload = {
-                 userId: userId,
-                 userEmail: clientPrincipal.userDetails,
+                 userId: userEmail,
+                 userEmail: userEmail,
                  week: week,
                  weekStartDate: WeekStartDate || week.split(' - ')[0],
                  dateSubmitted: dateSubmitted.toISOString(),

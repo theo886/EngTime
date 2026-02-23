@@ -1,10 +1,12 @@
-const { createTableClient, getUserInfo, ensureUser, isAllowedDomain } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, getUserEmail, ensureUser, isAllowedDomain } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('GetUserSettings function processing request.');
 
     const clientPrincipal = getUserInfo(req);
-    if (!clientPrincipal || !clientPrincipal.userId) {
+    const userEmail = getUserEmail(clientPrincipal);
+
+    if (!clientPrincipal || !userEmail) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
@@ -16,11 +18,9 @@ module.exports = async function (context, req) {
 
     await ensureUser(req);
 
-    const userId = clientPrincipal.userId;
-
     try {
         const usersClient = createTableClient("users");
-        const entity = await usersClient.getEntity("users", userId);
+        const entity = await usersClient.getEntity("users", userEmail);
         context.res = {
             status: 200,
             body: {
@@ -29,7 +29,6 @@ module.exports = async function (context, req) {
         };
     } catch (err) {
         if (err.statusCode === 404) {
-            // No user record yet — return defaults
             context.res = {
                 status: 200,
                 body: { defaultInputMode: "percent" }
