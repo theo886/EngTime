@@ -1430,7 +1430,6 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             targetUserEmail: userSelect.value,
-            targetUserEmail: selectedOpt.dataset.email || '',
             week: weekKey,
             WeekStartDate: weekKey.split(' - ')[0],
             entries: editEntries.filter(e => e.projectId).map(e => ({

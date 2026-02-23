@@ -46,8 +46,7 @@ module.exports = async function (context, req) {
         });
         for await (const entity of entities) {
             users.push({
-                userId: entity.rowKey,
-                email: entity.email || '',
+                email: entity.rowKey,
                 displayName: entity.displayName || ''
             });
         }
@@ -92,7 +91,7 @@ module.exports = async function (context, req) {
                 if (displayName) {
                     await usersClient.upsertEntity({
                         partitionKey: "users",
-                        rowKey: user.userId,
+                        rowKey: user.email,
                         displayName: displayName
                     }, "Merge");
                     populated++;
