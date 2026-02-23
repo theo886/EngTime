@@ -363,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function() {
                       </svg>
                       Settings
                     </a>
-                    <a href="/.auth/purge/aad" id="logout-button" class="flex items-center">
+                    <a href="/.auth/logout?post_logout_redirect_uri=/" id="logout-button" class="flex items-center">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                         <polyline points="16 17 21 12 16 7"></polyline>
@@ -2015,9 +2015,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 userMsg.textContent = 'You are signed in as ' + (userInfo.userDetails || 'unknown') + '.';
 
                 const logoutLink = document.createElement('a');
-                logoutLink.href = '/.auth/purge/aad';
+                logoutLink.href = '/.auth/login/aad';
                 logoutLink.style.cssText = 'padding:0.5rem 1.5rem;background:#2563eb;color:white;border-radius:0.375rem;text-decoration:none;font-weight:500;';
-                logoutLink.textContent = 'Sign Out';
+                logoutLink.textContent = 'Sign in with a different account';
 
                 wrapper.appendChild(heading);
                 wrapper.appendChild(msg);
