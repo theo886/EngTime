@@ -480,6 +480,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const loginButton = document.getElementById('login-button');
     if (loginButton) {
         loginButton.addEventListener('click', () => {
+            localStorage.removeItem('engtime_logged_out');
             window.location.href = '/.auth/login/aad'; // Redirect to Azure AD login
         });
     }
@@ -504,10 +505,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const logoutButton = document.getElementById('logout-button');
     if (logoutButton) {
-        logoutButton.addEventListener('click', async function(e) {
+        logoutButton.addEventListener('click', function(e) {
             e.preventDefault();
-            await fetch('/.auth/logout');
-            window.location.href = 'https://login.microsoftonline.com/common/oauth2/v2.0/logout';
+            localStorage.setItem('engtime_logged_out', 'true');
+            window.location.href = '/.auth/logout?post_logout_redirect_uri=/';
         });
     }
 
@@ -1995,8 +1996,14 @@ document.addEventListener('DOMContentLoaded', function() {
         loadingIndicator?.classList.remove('hidden');
 
         // Use the existing function to get user info
-        userInfo = await getUserInfoFromAuthEndpoint(); 
+        userInfo = await getUserInfoFromAuthEndpoint();
         console.log("User info from checkAuthStatus:", userInfo);
+
+        // If user explicitly logged out, override auth status
+        if (userInfo && localStorage.getItem('engtime_logged_out') === 'true') {
+            console.log("User explicitly logged out — ignoring active session");
+            userInfo = null;
+        }
 
         if (userInfo) {
             // Domain restriction check
@@ -2023,6 +2030,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 logoutLink.href = '/.auth/login/aad';
                 logoutLink.style.cssText = 'padding:0.5rem 1.5rem;background:#2563eb;color:white;border-radius:0.375rem;text-decoration:none;font-weight:500;';
                 logoutLink.textContent = 'Sign in with a different account';
+                logoutLink.addEventListener('click', () => localStorage.removeItem('engtime_logged_out'));
 
                 wrapper.appendChild(heading);
                 wrapper.appendChild(msg);
