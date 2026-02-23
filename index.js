@@ -2240,7 +2240,7 @@ document.addEventListener('DOMContentLoaded', function() {
         userNameSpan.textContent = userInfo.displayName;
       } else {
         // Get base username (before '@')
-        let baseUsername = userInfo.userId; // Fallback to userId
+        let baseUsername = userInfo.userDetails || ''; // Fallback to email
         if (userInfo.userDetails) {
           baseUsername = userInfo.userDetails.includes('@') ? userInfo.userDetails.split('@')[0] : userInfo.userDetails;
         }
