@@ -82,6 +82,9 @@ module.exports = async function (context, req) {
         const engtimeEntities = engtimeClient.listEntities();
 
         for await (const entity of engtimeEntities) {
+            // Skip old userId-keyed entries (superseded by email-keyed copies from migration)
+            if (!entity.partitionKey.includes('@')) continue;
+
             const projectId = entity.projectId;
             if (!projectId) continue;
 
