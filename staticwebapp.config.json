@@ -1,12 +1,1 @@
-{
-  "auth": {
-    "identityProviders": {
-      "azureActiveDirectory": {
-        "login": {
-          "loginParameters": ["prompt=select_account"]
-        }
-      }
-    }
-  },
-  "routes": []
-}
+{"routes":[]}
