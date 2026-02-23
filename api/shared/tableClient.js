@@ -54,12 +54,21 @@ function getUserInfo(req) {
 }
 
 /**
- * Checks if the given userId has isAdmin=true in the users table.
+ * Extracts the user's email from the client principal, lowercased.
+ * This is the primary user identifier (stable across SWA config changes).
  */
-async function isAdmin(userId) {
+function getUserEmail(clientPrincipal) {
+    if (!clientPrincipal || !clientPrincipal.userDetails) return null;
+    return clientPrincipal.userDetails.toLowerCase();
+}
+
+/**
+ * Checks if the given user email has isAdmin=true in the users table.
+ */
+async function isAdmin(userEmail) {
     try {
         const usersClient = createTableClient("users");
-        const entity = await usersClient.getEntity("users", userId);
+        const entity = await usersClient.getEntity("users", userEmail);
         return entity.isAdmin === true;
     } catch (e) {
         // 404 means user not found, treat as not admin
@@ -74,7 +83,8 @@ async function isAdmin(userId) {
  */
 async function ensureUser(req) {
     const clientPrincipal = getUserInfo(req);
-    if (!clientPrincipal || !clientPrincipal.userId) return;
+    const userEmail = getUserEmail(clientPrincipal);
+    if (!userEmail) return;
     if (!isAllowedDomain(clientPrincipal)) return;
 
     try {
@@ -82,14 +92,14 @@ async function ensureUser(req) {
         const now = new Date();
         const entity = {
             partitionKey: "users",
-            rowKey: clientPrincipal.userId,
-            email: clientPrincipal.userDetails || "",
+            rowKey: userEmail,
+            email: userEmail,
             lastSeen: now
         };
 
         // Check if user exists — if not, set firstSeen and defaults
         try {
-            const existing = await usersClient.getEntity("users", clientPrincipal.userId);
+            const existing = await usersClient.getEntity("users", userEmail);
             // Backfill displayName for existing users who don't have one yet
             if (!existing.displayName && clientPrincipal.displayName) {
                 entity.displayName = clientPrincipal.displayName;
@@ -110,4 +120,4 @@ async function ensureUser(req) {
     }
 }
 
-module.exports = { createTableClient, getUserInfo, isAdmin, ensureUser, isAllowedDomain };
+module.exports = { createTableClient, getUserInfo, getUserEmail, isAdmin, ensureUser, isAllowedDomain };
