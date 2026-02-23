@@ -1,11 +1,12 @@
 const axios = require("axios");
-const { createTableClient, getUserInfo, isAdmin, ensureUser, isAllowedDomain } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, getUserEmail, isAdmin, ensureUser, isAllowedDomain } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('PopulateDisplayNames function processing request.');
 
     const clientPrincipal = getUserInfo(req);
-    if (!clientPrincipal || !clientPrincipal.userId) {
+    const userEmail = getUserEmail(clientPrincipal);
+    if (!clientPrincipal || !userEmail) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
@@ -17,7 +18,7 @@ module.exports = async function (context, req) {
 
     await ensureUser(req);
 
-    const adminStatus = await isAdmin(clientPrincipal.userId);
+    const adminStatus = await isAdmin(userEmail);
     if (!adminStatus) {
         context.res = { status: 403, body: "Admin access required." };
         return;

@@ -1,10 +1,11 @@
-const { getUserInfo, isAdmin, ensureUser, isAllowedDomain } = require("../shared/tableClient");
+const { getUserInfo, getUserEmail, isAdmin, ensureUser, isAllowedDomain } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('CheckAdmin function processing request.');
 
     const clientPrincipal = getUserInfo(req);
-    if (!clientPrincipal || !clientPrincipal.userId) {
+    const userEmail = getUserEmail(clientPrincipal);
+    if (!clientPrincipal || !userEmail) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
@@ -17,7 +18,7 @@ module.exports = async function (context, req) {
     await ensureUser(req);
 
     try {
-        const adminStatus = await isAdmin(clientPrincipal.userId);
+        const adminStatus = await isAdmin(userEmail);
         context.res = {
             status: 200,
             body: { isAdmin: adminStatus }

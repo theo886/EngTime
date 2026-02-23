@@ -1,10 +1,11 @@
-const { createTableClient, getUserInfo, ensureUser, isAllowedDomain } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, getUserEmail, ensureUser, isAllowedDomain } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('GetProjects function processing request.');
 
     const clientPrincipal = getUserInfo(req);
-    if (!clientPrincipal || !clientPrincipal.userId) {
+    const userEmail = getUserEmail(clientPrincipal);
+    if (!clientPrincipal || !userEmail) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
