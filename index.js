@@ -2033,7 +2033,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 logoutLink.addEventListener('click', function(e) {
                     e.preventDefault();
                     localStorage.setItem('engtime_logged_out', 'true');
-                    window.location.href = '/.auth/logout?post_logout_redirect_uri=/';
+                    // Clear AAD "remain signed in" cookie so account picker shows on next login
+                    window.location.href = 'https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=' + encodeURIComponent(window.location.origin);
                 });
 
                 wrapper.appendChild(heading);
