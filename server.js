@@ -33,9 +33,9 @@ const MOCK_API = {
   '/api/CheckAdmin': { isAdmin: true },
   '/api/GetUserSettings': { defaultInputMode: 'percent' },
   '/api/GetUsers': [
-    { userId: 'dev-user-123', email: 'atheodossiou@energyrecovery.com', displayName: 'Alexandros Theodossiou', isAdmin: true, defaultInputMode: 'percent', firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString() },
-    { userId: 'user-jsmith', email: 'jsmith@energyrecovery.com', displayName: 'John Smith', isAdmin: false, defaultInputMode: 'percent', firstSeen: '2025-06-01T00:00:00Z', lastSeen: '2026-02-10T00:00:00Z' },
-    { userId: 'user-klee', email: 'klee@energyrecovery.com', displayName: 'Karen Lee', isAdmin: false, defaultInputMode: 'hours', firstSeen: '2025-08-15T00:00:00Z', lastSeen: '2026-02-12T00:00:00Z' }
+    { email: 'atheodossiou@energyrecovery.com', displayName: 'Alexandros Theodossiou', isAdmin: true, defaultInputMode: 'percent', firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString() },
+    { email: 'jsmith@energyrecovery.com', displayName: 'John Smith', isAdmin: false, defaultInputMode: 'percent', firstSeen: '2025-06-01T00:00:00Z', lastSeen: '2026-02-10T00:00:00Z' },
+    { email: 'klee@energyrecovery.com', displayName: 'Karen Lee', isAdmin: false, defaultInputMode: 'hours', firstSeen: '2025-08-15T00:00:00Z', lastSeen: '2026-02-12T00:00:00Z' }
   ],
   '/api/GetProjects': [
     { id: 'CP000022', name: 'General R&D Infrastructure', color: '#3498DB', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
@@ -68,7 +68,6 @@ const MOCK_API = {
   '/api/GetAllTimeAllocations': [],
   '/api/GetAllUsersTimesheets': [
     {
-      userId: 'dev-user-123',
       userEmail: 'atheodossiou@energyrecovery.com',
       displayName: 'Alexandros Theodossiou',
       weeks: {
@@ -84,7 +83,6 @@ const MOCK_API = {
       }
     },
     {
-      userId: 'user-jsmith',
       userEmail: 'jsmith@energyrecovery.com',
       displayName: 'John Smith',
       weeks: {
@@ -145,10 +143,10 @@ const server = http.createServer((req, res) => {
   if (MOCK_API[urlPath] !== undefined) {
     let data = MOCK_API[urlPath];
 
-    // Filter GetAllUsersTimesheets by userId if provided
-    if (urlPath === '/api/GetAllUsersTimesheets' && params.get('userId')) {
-      const userId = params.get('userId');
-      data = data.filter(u => u.userId === userId);
+    // Filter GetAllUsersTimesheets by userEmail if provided
+    if (urlPath === '/api/GetAllUsersTimesheets' && params.get('userEmail')) {
+      const filterEmail = params.get('userEmail');
+      data = data.filter(u => u.userEmail === filterEmail);
     }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
