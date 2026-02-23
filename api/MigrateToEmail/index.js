@@ -1,10 +1,11 @@
-const { createTableClient, getUserInfo, isAdmin, isAllowedDomain } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, getUserEmail, isAdmin, isAllowedDomain, ensureUser } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('MigrateToEmail function processing request.');
 
     const clientPrincipal = getUserInfo(req);
-    if (!clientPrincipal || !clientPrincipal.userId) {
+    const userEmail = getUserEmail(clientPrincipal);
+    if (!clientPrincipal || !userEmail) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
@@ -14,7 +15,9 @@ module.exports = async function (context, req) {
         return;
     }
 
-    const adminStatus = await isAdmin(clientPrincipal.userId);
+    await ensureUser(req);
+
+    const adminStatus = await isAdmin(userEmail);
     if (!adminStatus) {
         context.res = { status: 403, body: "Admin access required." };
         return;
