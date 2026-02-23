@@ -1028,7 +1028,7 @@
     const sortedUsers = [...adminData.users].sort((a, b) => {
       if (a.isAdmin && !b.isAdmin) return -1;
       if (!a.isAdmin && b.isAdmin) return 1;
-      return (a.displayName || a.email || a.userId).localeCompare(b.displayName || b.email || b.userId);
+      return (a.displayName || a.email).localeCompare(b.displayName || b.email);
     });
 
     sortedUsers.forEach(user => {
@@ -1038,7 +1038,7 @@
       // Name
       const nameTd = document.createElement('td');
       nameTd.className = 'py-2 px-2 font-medium';
-      nameTd.textContent = user.displayName || user.email || user.userId;
+      nameTd.textContent = user.displayName || user.email;
       if (user.displayName) {
         nameTd.title = user.email;
       }
@@ -1049,7 +1049,7 @@
       emailTd.className = 'py-2 px-2';
       const emailSpan = document.createElement('span');
       emailSpan.className = 'text-sm text-slate-500';
-      emailSpan.textContent = user.email || user.userId;
+      emailSpan.textContent = user.email;
       emailTd.appendChild(emailSpan);
       tr.appendChild(emailTd);
 
@@ -1071,7 +1071,7 @@
           const resp = await fetch('/api/UpdateUser', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'toggleAdmin', userId: user.userId })
+            body: JSON.stringify({ action: 'toggleAdmin', userEmail: user.email })
           });
           if (!resp.ok) {
             const errText = await resp.text();
@@ -1134,7 +1134,7 @@
     if (!projResp.ok || !usersResp.ok) throw new Error('Failed to load data');
     const projectsList = await projResp.json();
     const allUsers = (await usersResp.json()).sort((a, b) =>
-      (a.displayName || a.email || a.userId).localeCompare(b.displayName || b.email || b.userId)
+      (a.displayName || a.email).localeCompare(b.displayName || b.email)
     );
 
     contentEl.textContent = '';
@@ -1157,10 +1157,10 @@
     select.className = 'px-3 py-2 border rounded text-sm flex-1';
     allUsers.forEach(user => {
       const opt = document.createElement('option');
-      opt.value = user.userId;
+      opt.value = user.email;
       opt.textContent = user.displayName
-        ? user.displayName + ' (' + (user.email || user.userId) + ')'
-        : (user.email || user.userId);
+        ? user.displayName + ' (' + user.email + ')'
+        : user.email;
       opt.dataset.email = user.email || '';
       select.appendChild(opt);
     });
@@ -1181,7 +1181,7 @@
     // State for current user's timesheets
     let currentUserData = null;
 
-    async function loadUserData(userId) {
+    async function loadUserData(userEmail) {
       weekView.textContent = '';
       const loadDiv = document.createElement('div');
       loadDiv.className = 'text-center py-4 text-slate-400';
@@ -1189,12 +1189,12 @@
       weekView.appendChild(loadDiv);
 
       try {
-        const resp = await fetch('/api/GetAllUsersTimesheets?userId=' + encodeURIComponent(userId));
+        const resp = await fetch('/api/GetAllUsersTimesheets?userEmail=' + encodeURIComponent(userEmail));
         if (!resp.ok) throw new Error('Failed to load timesheets');
         const data = await resp.json();
-        currentUserData = data.find(u => u.userId === userId) || { userId, userEmail: '', weeks: {} };
+        currentUserData = data.find(u => u.userEmail === userEmail) || { userEmail, weeks: {} };
       } catch (err) {
-        currentUserData = { userId: select.value, userEmail: '', weeks: {} };
+        currentUserData = { userEmail: select.value, weeks: {} };
       }
       renderUserTimesheets(weekView, currentUserData, projectsList, select);
     }
@@ -1429,7 +1429,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            targetUserId: userSelect.value,
+            targetUserEmail: userSelect.value,
             targetUserEmail: selectedOpt.dataset.email || '',
             week: weekKey,
             WeekStartDate: weekKey.split(' - ')[0],
