@@ -507,7 +507,7 @@ document.addEventListener('DOMContentLoaded', function() {
         logoutButton.addEventListener('click', async function(e) {
             e.preventDefault();
             await fetch('/.auth/logout');
-            window.location.href = 'https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=' + encodeURIComponent(window.location.origin);
+            window.location.href = 'https://login.microsoftonline.com/common/oauth2/v2.0/logout';
         });
     }
 
