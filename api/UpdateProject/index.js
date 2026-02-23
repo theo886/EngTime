@@ -1,4 +1,4 @@
-const { createTableClient, getUserInfo, isAdmin, ensureUser, isAllowedDomain } = require("../shared/tableClient");
+const { createTableClient, getUserInfo, getUserEmail, isAdmin, ensureUser, isAllowedDomain } = require("../shared/tableClient");
 
 module.exports = async function (context, req) {
     context.log('UpdateProject function processing request.');
@@ -6,7 +6,8 @@ module.exports = async function (context, req) {
     const tableClient = createTableClient("projects");
 
     const clientPrincipal = getUserInfo(req);
-    if (!clientPrincipal || !clientPrincipal.userId) {
+    const userEmail = getUserEmail(clientPrincipal);
+    if (!clientPrincipal || !userEmail) {
         context.res = { status: 401, body: "User not authenticated." };
         return;
     }
@@ -18,7 +19,7 @@ module.exports = async function (context, req) {
 
     await ensureUser(req);
 
-    const adminStatus = await isAdmin(clientPrincipal.userId);
+    const adminStatus = await isAdmin(userEmail);
     if (!adminStatus) {
         context.res = { status: 403, body: "Admin access required." };
         return;
@@ -39,7 +40,7 @@ module.exports = async function (context, req) {
             color: color || '#808080',
             isActive: isActive !== false, // defaults to true
             updatedAt: new Date(),
-            updatedBy: clientPrincipal.userId
+            updatedBy: userEmail
         };
 
         // Add budget fields if provided (FTE per quarter)
@@ -60,7 +61,7 @@ module.exports = async function (context, req) {
         } catch (e) {
             if (e.statusCode === 404) {
                 entity.createdAt = new Date();
-                entity.createdBy = clientPrincipal.userId;
+                entity.createdBy = userEmail;
             }
         }
 
