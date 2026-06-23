@@ -2010,14 +2010,20 @@
       select.appendChild(opt);
     });
 
-    // Custom date pickers (hidden unless Custom is selected)
+    // Date pickers — ALWAYS visible. A preset fills these and applies; editing them
+    // by hand switches the dropdown to Custom. Seed from the saved preset (or saved
+    // custom dates) so the inputs reflect the active range on load.
+    const initialRange = savedPreset === 'custom'
+      ? { startDate: savedCustomStart, endDate: savedCustomEnd }
+      : getDateRangeFromPreset(savedPreset);
+
     const customRow = document.createElement('div');
-    customRow.className = 'flex gap-2 items-center' + (savedPreset !== 'custom' ? ' hidden' : '');
+    customRow.className = 'flex gap-2 items-center';
 
     const startInput = document.createElement('input');
     startInput.type = 'date';
     startInput.className = 'px-2 py-1.5 border rounded text-sm';
-    startInput.value = savedCustomStart;
+    startInput.value = (initialRange && initialRange.startDate) || '';
 
     const toLabel = document.createElement('span');
     toLabel.className = 'text-sm text-slate-500';
@@ -2026,7 +2032,7 @@
     const endInput = document.createElement('input');
     endInput.type = 'date';
     endInput.className = 'px-2 py-1.5 border rounded text-sm';
-    endInput.value = savedCustomEnd;
+    endInput.value = (initialRange && initialRange.endDate) || '';
 
     const applyBtn = document.createElement('button');
     applyBtn.className = 'px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700';
@@ -2069,11 +2075,17 @@
     inactiveWrap.appendChild(inactiveCheckbox);
     inactiveWrap.appendChild(inactiveText);
 
+    // Keep the Team label + select together so they wrap as one unit (the always-visible
+    // date inputs widen the row and would otherwise orphan the "Team:" label).
+    const teamRow = document.createElement('div');
+    teamRow.className = 'flex gap-2 items-center';
+    teamRow.appendChild(teamLabel);
+    teamRow.appendChild(teamSelect);
+
     selectorRow.appendChild(label);
     selectorRow.appendChild(select);
     selectorRow.appendChild(customRow);
-    selectorRow.appendChild(teamLabel);
-    selectorRow.appendChild(teamSelect);
+    selectorRow.appendChild(teamRow);
     selectorRow.appendChild(inactiveWrap);
     contentEl.appendChild(selectorRow);
 
@@ -2149,40 +2161,21 @@
 
     // Fetch and render logic
     async function fetchAndRender() {
-      let startDate = null;
-      let endDate = null;
-      const preset = select.value;
+      // The two date inputs are the single source of truth; presets just fill them.
+      const startDate = startInput.value || null;
+      const endDate = endInput.value || null;
 
-      localStorage.setItem('analyticsDatePreset', preset);
+      localStorage.setItem('analyticsDatePreset', select.value);
+      localStorage.setItem('analyticsCustomStart', startDate || '');
+      localStorage.setItem('analyticsCustomEnd', endDate || '');
 
-      if (preset === 'custom') {
-        startDate = startInput.value || null;
-        endDate = endInput.value || null;
-        localStorage.setItem('analyticsCustomStart', startDate || '');
-        localStorage.setItem('analyticsCustomEnd', endDate || '');
-
-        if (!startDate || !endDate) {
-          analyticsContent.textContent = '';
-          const hint = document.createElement('div');
-          hint.className = 'text-center py-8 text-slate-400';
-          hint.textContent = 'Select start and end dates, then click Apply.';
-          analyticsContent.appendChild(hint);
-          return;
-        }
-      } else {
-        const range = getDateRangeFromPreset(preset);
-        if (range) {
-          startDate = range.startDate;
-          endDate = range.endDate;
-        }
-        // "Last Week" creates the custom dates for the previous week so they're
-        // pre-filled and visible if the user switches to Custom to tweak them.
-        if (preset === 'lastweek' && range) {
-          startInput.value = range.startDate;
-          endInput.value = range.endDate;
-          localStorage.setItem('analyticsCustomStart', range.startDate);
-          localStorage.setItem('analyticsCustomEnd', range.endDate);
-        }
+      if (!startDate || !endDate) {
+        analyticsContent.textContent = '';
+        const hint = document.createElement('div');
+        hint.className = 'text-center py-8 text-slate-400';
+        hint.textContent = 'Select start and end dates, then click Apply.';
+        analyticsContent.appendChild(hint);
+        return;
       }
 
       // Show loading
@@ -2212,13 +2205,24 @@
 
     // Event wiring
     select.addEventListener('change', () => {
-      if (select.value === 'custom') {
-        customRow.classList.remove('hidden');
-      } else {
-        customRow.classList.add('hidden');
-        fetchAndRender();
+      const preset = select.value;
+      localStorage.setItem('analyticsDatePreset', preset);
+      if (preset === 'custom') return; // keep current dates; user edits + clicks Apply
+      const range = getDateRangeFromPreset(preset);
+      if (range && range.startDate && range.endDate) {
+        startInput.value = range.startDate;
+        endInput.value = range.endDate;
       }
+      fetchAndRender();
     });
+
+    // Editing a date by hand means the range is no longer a named preset
+    function markCustom() {
+      select.value = 'custom';
+      localStorage.setItem('analyticsDatePreset', 'custom');
+    }
+    startInput.addEventListener('change', markCustom);
+    endInput.addEventListener('change', markCustom);
 
     applyBtn.addEventListener('click', () => fetchAndRender());
 
