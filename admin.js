@@ -53,9 +53,9 @@
     const tabs = [
       { id: 'projects', label: 'Projects' },
       { id: 'defaults', label: 'Default Projects' },
-      { id: 'budgets', label: 'Budgets' },
       { id: 'users', label: 'Users' },
       { id: 'timesheets', label: 'User Timesheets' },
+      { id: 'budgets', label: 'Budgets' },
       { id: 'analytics', label: 'Analytics' }
     ];
 
@@ -1871,24 +1871,35 @@
     return label.substring(0, maxLen - 1) + '\u2026';
   }
 
-  function calcYtdBudgetHours(project, startDate, endDate) {
+  // Pick the FTE budget for a quarter based on the selected team.
+  // 'eng' (Engineering) uses the persisted total (budgetQ = R&D + P&S); 'rd'/'ps' use the team field.
+  function budgetTeamFte(project, q, team) {
+    if (team === 'rd') return Number(project['budgetRd' + q]) || 0;
+    if (team === 'ps') return Number(project['budgetPs' + q]) || 0;
+    return Number(project['budget' + q]) || 0;
+  }
+
+  function calcYtdBudgetHours(project, startDate, endDate, team) {
     var now = new Date();
-    var year = now.getFullYear();
+    // Quarter boundaries follow the SELECTED range's year (budgets aren't year-specific), so a
+    // prior-year window — e.g. "Last Week" in early January — lines up with the correct quarters
+    // instead of computing a 0-hour budget (which would mis-flag every project as over budget).
+    var quarterYear = startDate ? new Date(startDate + 'T00:00:00').getFullYear() : now.getFullYear();
     var quarterRanges = [
-      { fte: project.budgetQ1 || 0, start: new Date(year, 0, 1),  end: new Date(year, 2, 31) },
-      { fte: project.budgetQ2 || 0, start: new Date(year, 3, 1),  end: new Date(year, 5, 30) },
-      { fte: project.budgetQ3 || 0, start: new Date(year, 6, 1),  end: new Date(year, 8, 30) },
-      { fte: project.budgetQ4 || 0, start: new Date(year, 9, 1),  end: new Date(year, 11, 31) }
+      { fte: budgetTeamFte(project, 'Q1', team), start: new Date(quarterYear, 0, 1),  end: new Date(quarterYear, 2, 31) },
+      { fte: budgetTeamFte(project, 'Q2', team), start: new Date(quarterYear, 3, 1),  end: new Date(quarterYear, 5, 30) },
+      { fte: budgetTeamFte(project, 'Q3', team), start: new Date(quarterYear, 6, 1),  end: new Date(quarterYear, 8, 30) },
+      { fte: budgetTeamFte(project, 'Q4', team), start: new Date(quarterYear, 9, 1),  end: new Date(quarterYear, 11, 31) }
     ];
 
     // Find Monday of the current week (absolute cutoff — never count beyond today's week)
-    var today = new Date(year, now.getMonth(), now.getDate());
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     var dayOfWeek = today.getDay();
     var mondayOfCurrentWeek = new Date(today);
     mondayOfCurrentWeek.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
 
     // Use selected date range, falling back to Jan 1 → current Monday
-    var yearStart = startDate ? new Date(startDate + 'T00:00:00') : new Date(year, 0, 1);
+    var yearStart = startDate ? new Date(startDate + 'T00:00:00') : new Date(quarterYear, 0, 1);
     var endBound = endDate ? new Date(new Date(endDate + 'T00:00:00').getTime() + 86400000) : mondayOfCurrentWeek;
     var cutoffDate = endBound < mondayOfCurrentWeek ? endBound : mondayOfCurrentWeek;
 
@@ -1917,6 +1928,27 @@
 
   let analyticsChartInstance = null;
 
+  // Format a Date as YYYY-MM-DD using local (not UTC) parts so the week boundary doesn't shift.
+  function fmtLocalDate(d) {
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+
+  // Previous work week: Monday → Friday of the week before the current one.
+  function getLastWeekRange() {
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var dow = today.getDay(); // 0=Sun..6=Sat
+    var thisMonday = new Date(today);
+    thisMonday.setDate(today.getDate() - ((dow + 6) % 7));
+    var lastMonday = new Date(thisMonday);
+    lastMonday.setDate(thisMonday.getDate() - 7);
+    var lastFriday = new Date(lastMonday);
+    lastFriday.setDate(lastMonday.getDate() + 4);
+    return { startDate: fmtLocalDate(lastMonday), endDate: fmtLocalDate(lastFriday) };
+  }
+
   function getDateRangeFromPreset(preset) {
     if (preset === 'custom') return null;
 
@@ -1925,6 +1957,7 @@
     if (preset === 'ytd') {
       return { startDate: year + '-01-01', endDate: new Date().toISOString().slice(0, 10) };
     }
+    if (preset === 'lastweek') return getLastWeekRange();
     if (preset === 'q1') return { startDate: year + '-01-01', endDate: year + '-03-31' };
     if (preset === 'q2') return { startDate: year + '-04-01', endDate: year + '-06-30' };
     if (preset === 'q3') return { startDate: year + '-07-01', endDate: year + '-09-30' };
@@ -1962,6 +1995,7 @@
     select.className = 'px-3 py-2 border rounded text-sm';
     const presets = [
       { value: 'ytd', label: 'Year to Date' },
+      { value: 'lastweek', label: 'Last Week' },
       { value: 'q1', label: 'Q1 (Jan–Mar)' },
       { value: 'q2', label: 'Q2 (Apr–Jun)' },
       { value: 'q3', label: 'Q3 (Jul–Sep)' },
@@ -2003,16 +2037,60 @@
     customRow.appendChild(endInput);
     customRow.appendChild(applyBtn);
 
+    // Team selector (Engineering total / R&D / P&S) — switches the budget baseline only
+    const savedTeam = localStorage.getItem('analyticsTeam') || 'eng';
+    const teamLabel = document.createElement('label');
+    teamLabel.className = 'text-sm font-medium text-slate-700 ml-2';
+    teamLabel.textContent = 'Team:';
+
+    const teamSelect = document.createElement('select');
+    teamSelect.className = 'px-3 py-2 border rounded text-sm';
+    [
+      { value: 'eng', label: 'Engineering' },
+      { value: 'rd', label: 'R&D' },
+      { value: 'ps', label: 'P&S' }
+    ].forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.value;
+      opt.textContent = t.label;
+      if (t.value === savedTeam) opt.selected = true;
+      teamSelect.appendChild(opt);
+    });
+
+    // Include inactive projects toggle (default off)
+    const inactiveWrap = document.createElement('label');
+    inactiveWrap.className = 'flex items-center gap-2 text-sm text-slate-700 ml-2 cursor-pointer';
+    const inactiveCheckbox = document.createElement('input');
+    inactiveCheckbox.type = 'checkbox';
+    inactiveCheckbox.className = 'rounded border-gray-300';
+    inactiveCheckbox.checked = localStorage.getItem('analyticsIncludeInactive') === 'true';
+    const inactiveText = document.createElement('span');
+    inactiveText.textContent = 'Include inactive projects';
+    inactiveWrap.appendChild(inactiveCheckbox);
+    inactiveWrap.appendChild(inactiveText);
+
     selectorRow.appendChild(label);
     selectorRow.appendChild(select);
     selectorRow.appendChild(customRow);
+    selectorRow.appendChild(teamLabel);
+    selectorRow.appendChild(teamSelect);
+    selectorRow.appendChild(inactiveWrap);
     contentEl.appendChild(selectorRow);
 
     // View toggle (Absolute Hours / % of Budget)
     let currentView = 'hours';
+    let currentTeam = savedTeam;
+    let includeInactive = inactiveCheckbox.checked;
     let cachedAnalytics = null;
     let cachedStartDate = null;
     let cachedEndDate = null;
+
+    // Re-render from cache (team / inactive / view changes need no re-fetch — the data is all there)
+    function rerender() {
+      if (cachedAnalytics) {
+        renderAnalyticsContent(analyticsContent, cachedAnalytics, currentView, cachedStartDate, cachedEndDate, currentTeam, includeInactive);
+      }
+    }
 
     const toggleRow = document.createElement('div');
     toggleRow.className = 'mb-4 flex items-center border border-gray-300 rounded-lg overflow-hidden shadow-sm w-fit';
@@ -2039,13 +2117,26 @@
     btnHours.addEventListener('click', () => {
       if (currentView === 'hours') return;
       setActiveToggle('hours');
-      if (cachedAnalytics) renderAnalyticsContent(analyticsContent, cachedAnalytics, currentView, cachedStartDate, cachedEndDate);
+      rerender();
     });
 
     btnPercent.addEventListener('click', () => {
       if (currentView === 'percent') return;
       setActiveToggle('percent');
-      if (cachedAnalytics) renderAnalyticsContent(analyticsContent, cachedAnalytics, currentView, cachedStartDate, cachedEndDate);
+      rerender();
+    });
+
+    // Team + inactive toggles re-render from the cached response (no network round-trip)
+    teamSelect.addEventListener('change', () => {
+      currentTeam = teamSelect.value;
+      localStorage.setItem('analyticsTeam', currentTeam);
+      rerender();
+    });
+
+    inactiveCheckbox.addEventListener('change', () => {
+      includeInactive = inactiveCheckbox.checked;
+      localStorage.setItem('analyticsIncludeInactive', includeInactive ? 'true' : 'false');
+      rerender();
     });
 
     toggleRow.appendChild(btnHours);
@@ -2084,6 +2175,14 @@
           startDate = range.startDate;
           endDate = range.endDate;
         }
+        // "Last Week" creates the custom dates for the previous week so they're
+        // pre-filled and visible if the user switches to Custom to tweak them.
+        if (preset === 'lastweek' && range) {
+          startInput.value = range.startDate;
+          endInput.value = range.endDate;
+          localStorage.setItem('analyticsCustomStart', range.startDate);
+          localStorage.setItem('analyticsCustomEnd', range.endDate);
+        }
       }
 
       // Show loading
@@ -2101,7 +2200,7 @@
         cachedAnalytics = analytics;
         cachedStartDate = startDate;
         cachedEndDate = endDate;
-        renderAnalyticsContent(analyticsContent, analytics, currentView, startDate, endDate);
+        rerender();
       } catch (err) {
         analyticsContent.textContent = '';
         const errDiv = document.createElement('div');
@@ -2127,7 +2226,7 @@
     await fetchAndRender();
   }
 
-  function renderAnalyticsContent(container, analytics, view, startDate, endDate) {
+  function renderAnalyticsContent(container, analytics, view, startDate, endDate, team, includeInactive) {
     // Destroy previous chart before clearing DOM to prevent memory leak
     if (analyticsChartInstance) {
       analyticsChartInstance.destroy();
@@ -2135,7 +2234,12 @@
     }
     container.textContent = '';
 
-    if (!analytics || analytics.length === 0) {
+    // Filter out inactive projects unless explicitly included (default: hide them)
+    const data = (analytics || []).filter(function(p) {
+      return includeInactive || p.isActive !== false;
+    });
+
+    if (data.length === 0) {
       const emptyDiv = document.createElement('div');
       emptyDiv.className = 'text-center py-8 text-slate-400';
       emptyDiv.textContent = 'No analytics data available for this date range.';
@@ -2143,14 +2247,14 @@
       return;
     }
 
-    // Recalculate budget hours client-side for YTD
-    analytics.forEach(function(p) {
-      p.budgetHours = calcYtdBudgetHours(p, startDate, endDate);
+    // Recalculate budget hours client-side against the selected team's FTE budget
+    data.forEach(function(p) {
+      p.budgetHours = calcYtdBudgetHours(p, startDate, endDate, team);
       p.isOverBudget = p.actualHours > p.budgetHours;
       p.overBy = p.isOverBudget ? p.actualHours - p.budgetHours : 0;
     });
 
-    const sorted = sortProjectsByHours(analytics);
+    const sorted = sortProjectsByHours(data);
     // Chart.js renders horizontal bars bottom-to-top, so reverse for display
     const displayData = sorted.slice().reverse();
 

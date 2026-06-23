@@ -95,8 +95,9 @@ const MOCK_API = {
   ],
   '/api/GetProjectAnalytics': [
     {
-      projectId: 'RD000049', projectName: 'PXG V2.5 Integration',
+      projectId: 'RD000049', projectName: 'PXG V2.5 Integration', isActive: true,
       budgetHours: 480, actualHours: 620, budgetQ1: 2, budgetQ2: 2, budgetQ3: 1, budgetQ4: 1,
+      budgetRdQ1: 2, budgetRdQ2: 2, budgetRdQ3: 1, budgetRdQ4: 1, budgetPsQ1: 0, budgetPsQ2: 0, budgetPsQ3: 0, budgetPsQ4: 0,
       isOverBudget: true, overBy: 140,
       userBreakdown: [
         { userEmail: 'atheodossiou@energyrecovery.com', displayName: 'Alexandros Theodossiou', totalHours: 320 },
@@ -105,8 +106,9 @@ const MOCK_API = {
       ]
     },
     {
-      projectId: 'CP000022', projectName: 'General R&D Infrastructure',
+      projectId: 'CP000022', projectName: 'General R&D Infrastructure', isActive: true,
       budgetHours: 800, actualHours: 540, budgetQ1: 3, budgetQ2: 3, budgetQ3: 2, budgetQ4: 2,
+      budgetRdQ1: 2, budgetRdQ2: 2, budgetRdQ3: 1, budgetRdQ4: 1, budgetPsQ1: 1, budgetPsQ2: 1, budgetPsQ3: 1, budgetPsQ4: 1,
       isOverBudget: false, overBy: 0,
       userBreakdown: [
         { userEmail: 'atheodossiou@energyrecovery.com', displayName: 'Alexandros Theodossiou', totalHours: 200 },
@@ -115,8 +117,9 @@ const MOCK_API = {
       ]
     },
     {
-      projectId: 'RD000050', projectName: 'Eductor',
+      projectId: 'RD000050', projectName: 'Eductor', isActive: true,
       budgetHours: 320, actualHours: 280, budgetQ1: 1, budgetQ2: 1, budgetQ3: 1, budgetQ4: 1,
+      budgetRdQ1: 0.5, budgetRdQ2: 0.5, budgetRdQ3: 0.5, budgetRdQ4: 0.5, budgetPsQ1: 0.5, budgetPsQ2: 0.5, budgetPsQ3: 0.5, budgetPsQ4: 0.5,
       isOverBudget: false, overBy: 0,
       userBreakdown: [
         { userEmail: 'jsmith@energyrecovery.com', displayName: 'John Smith', totalHours: 160 },
@@ -124,8 +127,9 @@ const MOCK_API = {
       ]
     },
     {
-      projectId: 'VQ000013', projectName: 'Project Eagle',
+      projectId: 'VQ000013', projectName: 'Project Eagle (inactive)', isActive: false,
       budgetHours: 200, actualHours: 250, budgetQ1: 0.5, budgetQ2: 0.5, budgetQ3: 0.5, budgetQ4: 0.5,
+      budgetRdQ1: 0, budgetRdQ2: 0, budgetRdQ3: 0, budgetRdQ4: 0, budgetPsQ1: 0.5, budgetPsQ2: 0.5, budgetPsQ3: 0.5, budgetPsQ4: 0.5,
       isOverBudget: true, overBy: 50,
       userBreakdown: [
         { userEmail: 'atheodossiou@energyrecovery.com', displayName: 'Alexandros Theodossiou', totalHours: 150 },

@@ -45,13 +45,24 @@ module.exports = async function (context, req) {
             queryOptions: { filter: "PartitionKey eq 'projects'" }
         });
         for await (const entity of projectEntities) {
-            projectMap[entity.rowKey] = {
+            const proj = {
                 name: entity.name || entity.rowKey,
+                isActive: entity.isActive !== false,
                 budgetQ1: entity.budgetQ1 || 0,
                 budgetQ2: entity.budgetQ2 || 0,
                 budgetQ3: entity.budgetQ3 || 0,
                 budgetQ4: entity.budgetQ4 || 0
             };
+            // R&D / P&S split. Seed legacy total into R&D when no team data exists
+            // (mirrors GetProjects) so per-team budget views have values to show.
+            ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
+                const rdStored = entity['budgetRd' + q];
+                const psStored = entity['budgetPs' + q];
+                const hasTeamData = rdStored !== undefined || psStored !== undefined;
+                proj['budgetRd' + q] = hasTeamData ? (Number(rdStored) || 0) : (Number(entity['budget' + q]) || 0);
+                proj['budgetPs' + q] = Number(psStored) || 0;
+            });
+            projectMap[entity.rowKey] = proj;
         }
 
         // Parse optional date range query parameters (ISO format: YYYY-MM-DD)
@@ -115,6 +126,7 @@ module.exports = async function (context, req) {
                 projectAggregation[projectId] = {
                     projectId: projectId,
                     projectName: proj.name || entity.projectName || projectId,
+                    isActive: proj.isActive !== false,
                     actualHours: 0,
                     expectedHours: 0,
                     weeksTracked: new Set(),
@@ -123,7 +135,15 @@ module.exports = async function (context, req) {
                     budgetQ1: proj.budgetQ1 || 0,
                     budgetQ2: proj.budgetQ2 || 0,
                     budgetQ3: proj.budgetQ3 || 0,
-                    budgetQ4: proj.budgetQ4 || 0
+                    budgetQ4: proj.budgetQ4 || 0,
+                    budgetRdQ1: proj.budgetRdQ1 || 0,
+                    budgetRdQ2: proj.budgetRdQ2 || 0,
+                    budgetRdQ3: proj.budgetRdQ3 || 0,
+                    budgetRdQ4: proj.budgetRdQ4 || 0,
+                    budgetPsQ1: proj.budgetPsQ1 || 0,
+                    budgetPsQ2: proj.budgetPsQ2 || 0,
+                    budgetPsQ3: proj.budgetPsQ3 || 0,
+                    budgetPsQ4: proj.budgetPsQ4 || 0
                 };
             }
 
@@ -158,12 +178,21 @@ module.exports = async function (context, req) {
             return {
                 projectId: proj.projectId,
                 projectName: proj.projectName,
+                isActive: proj.isActive !== false,
                 budgetHours: Math.round(budgetHours * 10) / 10,
                 actualHours: Math.round(proj.actualHours * 10) / 10,
                 budgetQ1: proj.budgetQ1,
                 budgetQ2: proj.budgetQ2,
                 budgetQ3: proj.budgetQ3,
                 budgetQ4: proj.budgetQ4,
+                budgetRdQ1: proj.budgetRdQ1,
+                budgetRdQ2: proj.budgetRdQ2,
+                budgetRdQ3: proj.budgetRdQ3,
+                budgetRdQ4: proj.budgetRdQ4,
+                budgetPsQ1: proj.budgetPsQ1,
+                budgetPsQ2: proj.budgetPsQ2,
+                budgetPsQ3: proj.budgetPsQ3,
+                budgetPsQ4: proj.budgetPsQ4,
                 isOverBudget: isOverBudget,
                 overBy: isOverBudget ? Math.round((proj.actualHours - budgetHours) * 10) / 10 : 0,
                 userBreakdown: Object.entries(proj.userBreakdown).map(([email, hours]) => ({
