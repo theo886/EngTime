@@ -2266,7 +2266,10 @@
     const chartCard = document.createElement('div');
     chartCard.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-6';
     const chartWrap = document.createElement('div');
-    chartWrap.style.cssText = 'position:relative;width:100%;min-height:480px;';
+    // Height grows with the project count so every y-axis label has room to render
+    // (paired with autoSkip:false below, this stops Chart.js from dropping labels).
+    const chartHeight = Math.max(480, displayData.length * 46 + 90);
+    chartWrap.style.cssText = 'position:relative;width:100%;height:' + chartHeight + 'px;';
     const canvas = document.createElement('canvas');
     chartWrap.appendChild(canvas);
     chartCard.appendChild(chartWrap);
@@ -2323,7 +2326,7 @@
             },
             y: {
               grid: { display: false },
-              ticks: { color: '#374151', font: { size: 12 } }
+              ticks: { color: '#374151', font: { size: 12 }, autoSkip: false }
             }
           },
           plugins: {
@@ -2413,7 +2416,7 @@
             },
             y: {
               grid: { display: false },
-              ticks: { color: '#374151', font: { size: 12 } }
+              ticks: { color: '#374151', font: { size: 12 }, autoSkip: false }
             }
           },
           plugins: {
