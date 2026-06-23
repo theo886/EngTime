@@ -33,7 +33,7 @@ module.exports = async function (context, req) {
         });
 
         for await (const entity of entities) {
-            projects.push({
+            const proj = {
                 id: entity.rowKey,
                 name: entity.name || '',
                 color: entity.color || '#808080',
@@ -46,7 +46,20 @@ module.exports = async function (context, req) {
                 defaultPercentage: entity.defaultPercentage || 0,
                 createdAt: entity.createdAt || '',
                 updatedAt: entity.updatedAt || ''
+            };
+
+            // R&D / P&S split. When a quarter has no team data yet, seed the legacy
+            // total into R&D (P&S = 0) so Total = R&D + P&S preserves existing numbers
+            // and GetProjectAnalytics keeps reading budgetQ unchanged.
+            ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
+                const rdStored = entity['budgetRd' + q];
+                const psStored = entity['budgetPs' + q];
+                const hasTeamData = rdStored !== undefined || psStored !== undefined;
+                proj['budgetRd' + q] = hasTeamData ? (Number(rdStored) || 0) : (Number(entity['budget' + q]) || 0);
+                proj['budgetPs' + q] = Number(psStored) || 0;
             });
+
+            projects.push(proj);
         }
 
         context.res = { status: 200, body: projects };

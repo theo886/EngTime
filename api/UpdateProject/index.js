@@ -43,11 +43,18 @@ module.exports = async function (context, req) {
             updatedBy: userEmail
         };
 
-        // Add budget fields if provided (FTE per quarter)
+        // Add budget fields if provided (FTE per quarter — persisted total = R&D + P&S)
         if (budgetQ1 !== undefined) entity.budgetQ1 = Number(budgetQ1) || 0;
         if (budgetQ2 !== undefined) entity.budgetQ2 = Number(budgetQ2) || 0;
         if (budgetQ3 !== undefined) entity.budgetQ3 = Number(budgetQ3) || 0;
         if (budgetQ4 !== undefined) entity.budgetQ4 = Number(budgetQ4) || 0;
+
+        // Add R&D / P&S team contributions if provided (FTE per quarter)
+        const body = req.body || {};
+        ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
+            if (body['budgetRd' + q] !== undefined) entity['budgetRd' + q] = Number(body['budgetRd' + q]) || 0;
+            if (body['budgetPs' + q] !== undefined) entity['budgetPs' + q] = Number(body['budgetPs' + q]) || 0;
+        });
 
         // Add default project fields if provided
         if (isDefault !== undefined) entity.isDefault = isDefault === true;
