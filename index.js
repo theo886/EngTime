@@ -6,6 +6,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // Projects loaded from API (no static fallback)
   let projects = [];
   let defaultProjects = [];
+
+  // Project Reference search state (find-and-jump within the reference list)
+  let projectRefQuery = '';
+  let projectRefHits = [];   // project ids matching the current query, in list order
+  let projectRefHitPos = 0;  // index into projectRefHits of the active hit
   const loadFakeDataForTesting = window.loadFakeDataForTesting;
   
   // Access utility functions from global scope
@@ -467,11 +472,26 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
 
             <div class="mt-6 pt-4 border-t">
-              <button id="project-reference-toggle" type="button" class="w-full flex items-center justify-between text-left text-sm font-semibold text-slate-600 hover:text-slate-800">
-                <span>Project Reference</span>
-                <svg id="project-reference-chevron" class="h-4 w-4 text-slate-400 transition-transform" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-              </button>
-              <div id="project-reference-list" class="mt-3 max-h-64 overflow-y-auto space-y-1 pr-1"></div>
+              <div class="flex items-center justify-between gap-2">
+                <button id="project-reference-toggle" type="button" class="flex items-center gap-1.5 text-left text-sm font-semibold text-slate-600 hover:text-slate-800">
+                  <span>Project Reference</span>
+                  <svg id="project-reference-chevron" class="h-4 w-4 text-slate-400 transition-transform" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                <div class="flex items-center gap-1">
+                  <div class="relative">
+                    <svg class="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input id="project-reference-search" type="text" placeholder="Search projects" autocomplete="off" class="w-32 sm:w-44 pl-7 pr-2 py-1 text-sm border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300" />
+                  </div>
+                  <span id="project-reference-count" class="text-xs text-slate-400 tabular-nums min-w-[2.5rem] text-center"></span>
+                  <button id="project-reference-prev" type="button" title="Previous match" disabled class="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-default disabled:hover:text-slate-400">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                  </button>
+                  <button id="project-reference-next" type="button" title="Next match" disabled class="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-default disabled:hover:text-slate-400">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  </button>
+                </div>
+              </div>
+              <div id="project-reference-list" class="mt-2 max-h-72 overflow-y-auto divide-y divide-slate-100 pr-1"></div>
             </div>
           </div>
 
@@ -494,6 +514,31 @@ document.addEventListener('DOMContentLoaded', function() {
         if (chevron) chevron.classList.toggle('-rotate-90');
       });
     }
+
+    // --- Project Reference search: jump to matches, arrows step through hits ---
+    const refSearch = document.getElementById('project-reference-search');
+    if (refSearch) {
+      refSearch.addEventListener('input', () => {
+        projectRefQuery = refSearch.value.trim().toLowerCase();
+        projectRefHitPos = 0;
+        if (projectRefQuery) {
+          // Make sure the list is open so the jumped-to match is visible
+          document.getElementById('project-reference-list')?.classList.remove('hidden');
+          document.getElementById('project-reference-chevron')?.classList.remove('-rotate-90');
+        }
+        updateProjectRefSearch(true);
+      });
+      refSearch.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          stepProjectRefHit(e.shiftKey ? -1 : 1);
+        }
+      });
+    }
+    const refPrev = document.getElementById('project-reference-prev');
+    if (refPrev) refPrev.addEventListener('click', () => stepProjectRefHit(-1));
+    const refNext = document.getElementById('project-reference-next');
+    if (refNext) refNext.addEventListener('click', () => stepProjectRefHit(1));
 
     // --- Auth Buttons ---
     const loginButton = document.getElementById('login-button');
@@ -705,6 +750,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function renderProjectReference() {
     const listEl = document.getElementById('project-reference-list');
     if (!listEl) return;
+    const prevScroll = listEl.scrollTop;
     listEl.innerHTML = '';
 
     if (!projects || projects.length === 0) {
@@ -717,29 +763,148 @@ document.addEventListener('DOMContentLoaded', function() {
 
     projects.forEach(project => {
       const row = document.createElement('div');
-      row.className = 'flex items-start space-x-2 px-1 py-1 text-sm';
+      row.className = 'flex items-start space-x-3 px-1 py-2.5 rounded cursor-pointer hover:bg-slate-50 transition-colors';
+      row.setAttribute('data-project-ref-id', project.id);
+      row.title = 'Click to add to timesheet';
+      row.addEventListener('click', () => {
+        const result = addProjectToTimesheet(project.id);
+        if (result.reason === 'auth') return;
+        flashProjectRefRow(project.id, result.added ? 'added' : 'duplicate');
+      });
 
       const colorDot = document.createElement('span');
       colorDot.className = 'inline-block w-3 h-3 rounded-full flex-shrink-0 mt-1';
       colorDot.style.backgroundColor = project.color || '#808080';
 
-      const text = document.createElement('span');
-      text.className = 'leading-snug';
+      const textCol = document.createElement('div');
+      textCol.className = 'min-w-0 flex-1';
 
+      // Top row: code + name (bold)
+      const heading = document.createElement('div');
+      heading.className = 'text-sm font-semibold text-slate-800 leading-snug';
       const code = document.createElement('span');
-      code.className = 'font-mono font-medium text-slate-700';
+      code.className = 'font-mono';
       code.textContent = project.id;
-      text.appendChild(code);
+      heading.appendChild(code);
+      heading.appendChild(document.createTextNode(` — ${project.name}`));
+      textCol.appendChild(heading);
 
-      const rest = document.createElement('span');
-      rest.className = 'text-slate-600';
-      rest.textContent = ` — ${project.name}` + (project.description ? ` — ${project.description}` : '');
-      text.appendChild(rest);
+      // Second row: description (muted, wraps onto additional lines when long)
+      if (project.description) {
+        const desc = document.createElement('div');
+        desc.className = 'text-sm text-slate-500 mt-0.5 leading-snug';
+        desc.textContent = project.description;
+        textCol.appendChild(desc);
+      }
 
       row.appendChild(colorDot);
-      row.appendChild(text);
+      row.appendChild(textCol);
       listEl.appendChild(row);
     });
+
+    // Preserve scroll position across re-renders, then re-apply any active search highlight
+    listEl.scrollTop = prevScroll;
+    updateProjectRefSearch(false);
+  }
+
+  // ===== Project Reference search (find-and-jump within the list) =====
+  function computeProjectRefHits() {
+    const q = projectRefQuery;
+    if (!q) { projectRefHits = []; return; }
+    projectRefHits = projects
+      .filter(p =>
+        (p.id && p.id.toLowerCase().includes(q)) ||
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.description && p.description.toLowerCase().includes(q)))
+      .map(p => p.id);
+  }
+
+  function highlightProjectRefRows() {
+    const listEl = document.getElementById('project-reference-list');
+    if (!listEl) return;
+    const currentId = projectRefHits[projectRefHitPos];
+    listEl.querySelectorAll('[data-project-ref-id]').forEach(rowEl => {
+      const id = rowEl.getAttribute('data-project-ref-id');
+      const isHit = projectRefHits.indexOf(id) !== -1;
+      rowEl.classList.toggle('bg-yellow-100', isHit && id === currentId);
+      rowEl.classList.toggle('bg-yellow-50', isHit && id !== currentId);
+      rowEl.classList.toggle('rounded', isHit);
+    });
+  }
+
+  function scrollProjectRefHitIntoView() {
+    const currentId = projectRefHits[projectRefHitPos];
+    if (currentId === undefined) return;
+    const listEl = document.getElementById('project-reference-list');
+    if (!listEl) return;
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(currentId) : currentId;
+    const rowEl = listEl.querySelector('[data-project-ref-id="' + sel + '"]');
+    if (!rowEl) return;
+    const listRect = listEl.getBoundingClientRect();
+    const rowRect = rowEl.getBoundingClientRect();
+    if (rowRect.top < listRect.top) {
+      listEl.scrollTop -= (listRect.top - rowRect.top);
+    } else if (rowRect.bottom > listRect.bottom) {
+      listEl.scrollTop += (rowRect.bottom - listRect.bottom);
+    }
+  }
+
+  function updateProjectRefSearch(doScroll) {
+    computeProjectRefHits();
+    if (projectRefHitPos >= projectRefHits.length) projectRefHitPos = 0;
+
+    const countEl = document.getElementById('project-reference-count');
+    if (countEl) {
+      countEl.textContent = !projectRefQuery
+        ? ''
+        : (projectRefHits.length ? (projectRefHitPos + 1) + '/' + projectRefHits.length : '0/0');
+    }
+
+    const hasHits = projectRefHits.length > 0;
+    const prevBtn = document.getElementById('project-reference-prev');
+    const nextBtn = document.getElementById('project-reference-next');
+    if (prevBtn) prevBtn.disabled = !hasHits;
+    if (nextBtn) nextBtn.disabled = !hasHits;
+
+    highlightProjectRefRows();
+    if (doScroll && hasHits) scrollProjectRefHitIntoView();
+  }
+
+  function stepProjectRefHit(dir) {
+    if (!projectRefHits.length) return;
+    projectRefHitPos = (projectRefHitPos + dir + projectRefHits.length) % projectRefHits.length;
+    updateProjectRefSearch(true);
+  }
+
+  // Add a project to the timesheet when its reference row is clicked.
+  // Reuses an empty entry slot if one exists; otherwise appends a new entry.
+  function addProjectToTimesheet(projectId) {
+    if (!userInfo) return { added: false, reason: 'auth' };
+    const pid = projectId.toString();
+    if (entries.some(e => e.projectId && e.projectId.toString() === pid)) {
+      return { added: false, reason: 'duplicate' };
+    }
+    const emptyEntry = entries.find(e => !e.projectId);
+    if (emptyEntry) {
+      updateEntry(emptyEntry.id, 'projectId', pid);
+    } else {
+      addEntry();
+      const newEntry = entries[entries.length - 1];
+      if (newEntry) updateEntry(newEntry.id, 'projectId', pid);
+    }
+    return { added: true };
+  }
+
+  // Briefly flash a reference row to confirm a click (green = added, amber = already on sheet).
+  function flashProjectRefRow(projectId, kind) {
+    const listEl = document.getElementById('project-reference-list');
+    if (!listEl) return;
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(projectId.toString()) : projectId;
+    const rowEl = listEl.querySelector('[data-project-ref-id="' + sel + '"]');
+    if (!rowEl) return;
+    const cls = kind === 'duplicate' ? 'bg-amber-100' : 'bg-green-100';
+    rowEl.classList.add(cls);
+    setTimeout(() => { rowEl.classList.remove(cls); }, 700);
   }
 
   function renderEntries() {
