@@ -6,7 +6,9 @@
     projects: [],
     users: [],
     usersTimesheets: [],
-    activeTab: 'projects'
+    activeTab: 'projects',
+    budgetSubTab: 'total',
+    budgetProjects: null
   };
 
   // Expose createAdminPage globally for index.js to call
@@ -51,9 +53,9 @@
     const tabs = [
       { id: 'projects', label: 'Projects' },
       { id: 'defaults', label: 'Default Projects' },
-      { id: 'budgets', label: 'Budgets' },
       { id: 'users', label: 'Users' },
       { id: 'timesheets', label: 'User Timesheets' },
+      { id: 'budgets', label: 'Budgets' },
       { id: 'analytics', label: 'Analytics' }
     ];
 
@@ -134,7 +136,7 @@
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
     headerRow.className = 'border-b text-left text-slate-500';
-    ['Color', 'ID', 'Name', 'Status', 'Actions'].forEach(text => {
+    ['Color', 'ID', 'Name', 'Description', 'Status', 'Actions'].forEach(text => {
       const th = document.createElement('th');
       th.className = 'py-2 px-2';
       th.textContent = text;
@@ -162,6 +164,15 @@
       const nameTd = document.createElement('td');
       nameTd.className = 'py-2 px-2';
       nameTd.textContent = project.name;
+
+      const descTd = document.createElement('td');
+      descTd.className = 'py-2 px-2';
+      const descWrap = document.createElement('div');
+      descWrap.className = 'truncate text-slate-500';
+      descWrap.style.maxWidth = '260px';
+      descWrap.textContent = project.description || '';
+      descWrap.title = project.description || '';
+      descTd.appendChild(descWrap);
 
       const statusTd = document.createElement('td');
       statusTd.className = 'py-2 px-2';
@@ -192,6 +203,7 @@
       tr.appendChild(colorTd);
       tr.appendChild(idTd);
       tr.appendChild(nameTd);
+      tr.appendChild(descTd);
       tr.appendChild(statusTd);
       tr.appendChild(actionsTd);
       tbody.appendChild(tr);
@@ -249,6 +261,21 @@
     nameGroup.appendChild(nameInput);
     grid.appendChild(nameGroup);
 
+    // Description field (full width)
+    const descGroup = document.createElement('div');
+    descGroup.className = 'col-span-2';
+    const descLabel = document.createElement('label');
+    descLabel.className = 'block text-xs text-slate-500 mb-1';
+    descLabel.textContent = 'Description';
+    const descInput = document.createElement('textarea');
+    descInput.id = 'pf-description';
+    descInput.rows = 3;
+    descInput.className = 'w-full px-3 py-2 border rounded text-sm';
+    descInput.value = existingProject?.description || '';
+    descGroup.appendChild(descLabel);
+    descGroup.appendChild(descInput);
+    grid.appendChild(descGroup);
+
     // Color field
     const colorGroup = document.createElement('div');
     const colorLabel = document.createElement('label');
@@ -294,6 +321,7 @@
       const id = idInput.value.trim();
       const name = nameInput.value.trim();
       const color = colorInput.value;
+      const description = descInput.value.trim();
 
       if (!id || !name) {
         errorEl.textContent = 'All fields are required.';
@@ -305,7 +333,7 @@
         const resp = await fetch('/api/UpdateProject', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId: id, name, color, isActive: existingProject?.isActive !== false })
+          body: JSON.stringify({ projectId: id, name, color, description, isActive: existingProject?.isActive !== false })
         });
         if (!resp.ok) throw new Error(await resp.text());
         form.remove();
@@ -505,84 +533,224 @@
     if (!response.ok) throw new Error('Failed to load projects');
     const projectsList = await response.json();
 
+    // Authoritative in-memory cache of active projects (mutated in place on edit so the
+    // Total tab and footer stay derivable without refetching).
+    adminData.budgetProjects = projectsList.filter(p => p.isActive);
+    if (!adminData.budgetSubTab) adminData.budgetSubTab = 'total';
+
     contentEl.textContent = '';
 
     // Description
     const desc = document.createElement('p');
     desc.className = 'text-sm text-slate-500 mb-4';
-    desc.textContent = 'Set FTE (Full-Time Engineer) budget per quarter. 1 FTE = 40 hrs/week.';
+    desc.textContent = 'Set FTE (Full-Time Engineer) budget per quarter. 1 FTE = 40 hrs/week. ' +
+      'The Total tab is read-only and shows the sum of the R&D and P&S contributions. Changes save automatically.';
     contentEl.appendChild(desc);
 
-    // Filter to active projects for export/import
-    const activeProjects = projectsList.filter(p => p.isActive);
+    // Header: sub-tabs (Total / R&D / P&S) on the left, kebab menu on the right
+    contentEl.appendChild(buildBudgetsHeader());
 
-    // Export/Import buttons
-    const btnRow = document.createElement('div');
-    btnRow.className = 'mb-4 flex gap-2';
+    // Sub-tab content (re-rendered on sub-tab switch without refetching)
+    const subContent = document.createElement('div');
+    subContent.id = 'budget-subtab-content';
+    contentEl.appendChild(subContent);
 
-    const exportBtn = document.createElement('button');
-    exportBtn.className = 'px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700';
-    exportBtn.textContent = 'Export to Excel';
-    exportBtn.addEventListener('click', () => {
-      if (typeof XLSX === 'undefined') {
-        alert('Excel library failed to load. Please refresh the page.');
-        return;
-      }
-      exportBudgetsToExcel(activeProjects);
-      exportBtn.textContent = 'Downloaded!';
-      exportBtn.className = 'px-4 py-2 bg-green-700 text-white rounded text-sm';
+    renderBudgetSubTab(subContent);
+  }
+
+  function buildBudgetsHeader() {
+    const headerRow = document.createElement('div');
+    headerRow.id = 'budget-header';
+    headerRow.className = 'flex items-center justify-between border-b mb-4';
+
+    // Sub-tab buttons
+    const subTabBar = document.createElement('div');
+    subTabBar.className = 'flex';
+    [
+      { id: 'total', label: 'Total' },
+      { id: 'rd', label: 'R&D' },
+      { id: 'ps', label: 'P&S' }
+    ].forEach(t => {
+      const btn = document.createElement('button');
+      btn.className = 'px-4 py-2 text-sm font-medium border-b-2 ' + (
+        adminData.budgetSubTab === t.id
+          ? 'border-indigo-600 text-indigo-600'
+          : 'border-transparent text-slate-500 hover:text-slate-700'
+      );
+      btn.textContent = t.label;
+      btn.addEventListener('click', () => switchBudgetSubTab(t.id));
+      subTabBar.appendChild(btn);
+    });
+    headerRow.appendChild(subTabBar);
+
+    // Kebab overflow menu (Export / Import)
+    headerRow.appendChild(buildBudgetKebabMenu());
+
+    return headerRow;
+  }
+
+  function switchBudgetSubTab(id) {
+    if (adminData.budgetSubTab === id) return;
+    // Persist any pending debounced saves for the tab we're leaving before re-rendering.
+    flushBudgetSaves();
+    adminData.budgetSubTab = id;
+
+    const oldHeader = document.getElementById('budget-header');
+    if (oldHeader) oldHeader.replaceWith(buildBudgetsHeader());
+
+    const subContent = document.getElementById('budget-subtab-content');
+    if (subContent) renderBudgetSubTab(subContent);
+  }
+
+  function buildBudgetKebabMenu() {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'relative';
+
+    const kebab = document.createElement('button');
+    kebab.className = 'px-2 py-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded text-lg leading-none';
+    kebab.setAttribute('aria-haspopup', 'true');
+    kebab.setAttribute('aria-expanded', 'false');
+    kebab.textContent = '⋮';
+
+    const menu = document.createElement('div');
+    menu.className = 'hidden absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded shadow-lg z-20 py-1';
+
+    function closeMenu() {
+      menu.classList.add('hidden');
+      kebab.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', onDocClick);
+      document.removeEventListener('keydown', onKeydown);
+    }
+    function openMenu() {
+      menu.classList.remove('hidden');
+      kebab.setAttribute('aria-expanded', 'true');
+      // Defer so the opening click doesn't immediately close the menu.
       setTimeout(() => {
-        exportBtn.textContent = 'Export to Excel';
-        exportBtn.className = 'px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700';
-      }, 1500);
+        document.addEventListener('click', onDocClick);
+        document.addEventListener('keydown', onKeydown);
+      }, 0);
+    }
+    function onDocClick(e) { if (!wrapper.contains(e.target)) closeMenu(); }
+    function onKeydown(e) { if (e.key === 'Escape') closeMenu(); }
+
+    kebab.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (menu.classList.contains('hidden')) openMenu();
+      else closeMenu();
     });
 
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = '.xlsx,.xls';
-    fileInput.className = 'hidden';
-    fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        handleBudgetImport(file, activeProjects, contentEl);
-        fileInput.value = '';
-      }
-    });
-
-    const importBtn = document.createElement('button');
-    importBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700';
-    importBtn.textContent = 'Import from Excel';
-    importBtn.addEventListener('click', () => {
+    // Export (available on all sub-tabs)
+    const exportItem = document.createElement('button');
+    exportItem.className = 'w-full text-left px-4 py-2 text-sm hover:bg-slate-50';
+    exportItem.textContent = 'Export to Excel';
+    exportItem.addEventListener('click', () => {
+      closeMenu();
+      const contentEl = document.getElementById('admin-content');
       if (typeof XLSX === 'undefined') {
-        alert('Excel library failed to load. Please refresh the page.');
+        showImportMessage(contentEl, 'Excel library failed to load. Please refresh the page.', 'red');
         return;
       }
-      fileInput.click();
+      exportBudgetsToExcel(adminData.budgetProjects || [], adminData.budgetSubTab);
     });
+    menu.appendChild(exportItem);
 
-    btnRow.appendChild(exportBtn);
-    btnRow.appendChild(importBtn);
-    btnRow.appendChild(fileInput);
-    contentEl.appendChild(btnRow);
+    // Import (R&D / P&S only — omitted on the read-only Total tab)
+    if (adminData.budgetSubTab !== 'total') {
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.xlsx,.xls';
+      fileInput.className = 'hidden';
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          handleBudgetImport(file, adminData.budgetProjects || [], document.getElementById('admin-content'), adminData.budgetSubTab);
+          fileInput.value = '';
+        }
+      });
+
+      const importItem = document.createElement('button');
+      importItem.className = 'w-full text-left px-4 py-2 text-sm hover:bg-slate-50';
+      importItem.textContent = 'Import from Excel';
+      importItem.addEventListener('click', () => {
+        closeMenu();
+        if (typeof XLSX === 'undefined') {
+          showImportMessage(document.getElementById('admin-content'), 'Excel library failed to load. Please refresh the page.', 'red');
+          return;
+        }
+        fileInput.click();
+      });
+      menu.appendChild(importItem);
+      menu.appendChild(fileInput);
+    }
+
+    wrapper.appendChild(kebab);
+    wrapper.appendChild(menu);
+    return wrapper;
+  }
+
+  // --- Budget helpers shared across the three sub-tabs ---
+  const BUDGET_QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
+
+  function budgetFmt(v) {
+    return v % 1 === 0 ? String(v) : v.toFixed(1);
+  }
+  function budgetTeamKey(sub) {
+    return sub === 'rd' ? 'Rd' : sub === 'ps' ? 'Ps' : null; // null = Total (read-only)
+  }
+  function budgetFieldName(teamKey, q) {
+    return 'budget' + teamKey + q; // e.g. ('Rd','Q1') -> 'budgetRdQ1'
+  }
+  function budgetQuarterValue(project, q, sub) {
+    if (sub === 'total') {
+      return (Number(project['budgetRd' + q]) || 0) + (Number(project['budgetPs' + q]) || 0);
+    }
+    return Number(project[budgetFieldName(budgetTeamKey(sub), q)]) || 0;
+  }
+
+  function renderBudgetSubTab(subContentEl) {
+    const sub = adminData.budgetSubTab;
+    const teamKey = budgetTeamKey(sub);
+    const editable = teamKey !== null;
+    const projects = adminData.budgetProjects || [];
+
+    subContentEl.textContent = '';
+
+    // Auto-save status slot (top of the list)
+    const statusSlot = document.createElement('div');
+    statusSlot.id = 'budget-save-status';
+    statusSlot.className = 'mb-2';
+    subContentEl.appendChild(statusSlot);
 
     const table = document.createElement('table');
     table.className = 'w-full text-sm';
 
-    // Table header
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
     headerRow.className = 'border-b text-left text-slate-500';
-    ['Project', 'Q1', 'Q2', 'Q3', 'Q4', 'Total FTE', ''].forEach(text => {
+    ['Project', 'Q1', 'Q2', 'Q3', 'Q4', 'Total FTE'].forEach(text => {
       const th = document.createElement('th');
-      th.className = 'py-2 px-2' + (text !== 'Project' && text !== '' ? ' text-center' : '');
+      th.className = 'py-2 px-2' + (text !== 'Project' ? ' text-center' : '');
       th.textContent = text;
       headerRow.appendChild(th);
     });
     thead.appendChild(headerRow);
     table.appendChild(thead);
 
+    // Footer cell refs + live recompute (column sums + grand average)
+    const footerCells = {};
+    const recomputeFooter = () => {
+      const sums = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 };
+      projects.forEach(p => {
+        BUDGET_QUARTERS.forEach(q => { sums[q] += budgetQuarterValue(p, q, sub); });
+      });
+      BUDGET_QUARTERS.forEach(q => { if (footerCells[q]) footerCells[q].textContent = budgetFmt(sums[q]); });
+      if (footerCells.total) {
+        footerCells.total.textContent = budgetFmt((sums.Q1 + sums.Q2 + sums.Q3 + sums.Q4) / 4);
+      }
+    };
+
     const tbody = document.createElement('tbody');
-    projectsList.filter(p => p.isActive).forEach(project => {
+    projects.forEach(project => {
       const tr = document.createElement('tr');
       tr.className = 'border-b hover:bg-slate-50';
 
@@ -591,95 +759,208 @@
       nameTd.textContent = project.name;
       tr.appendChild(nameTd);
 
-      // Q1-Q4 inputs
       const inputs = {};
-      ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
+      const totalTd = document.createElement('td');
+      totalTd.className = 'py-2 px-2 text-center font-medium';
+
+      const updateRowAverage = () => {
+        const sum = BUDGET_QUARTERS.reduce((s, q) => {
+          const v = (editable && inputs[q])
+            ? (inputs[q].value.trim() === '' ? 0 : Number(inputs[q].value) || 0)
+            : budgetQuarterValue(project, q, sub);
+          return s + v;
+        }, 0);
+        totalTd.textContent = budgetFmt(sum / 4);
+      };
+
+      BUDGET_QUARTERS.forEach(q => {
         const td = document.createElement('td');
         td.className = 'py-2 px-1 text-center';
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.min = '0';
-        input.step = '0.1';
-        input.className = 'w-16 px-1 py-1 border rounded text-sm text-center';
-        input.value = project['budget' + q] || '';
-        input.placeholder = '0';
-        inputs[q] = input;
-        td.appendChild(input);
+
+        if (editable) {
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.min = '0';
+          input.step = '0.1';
+          input.className = 'w-16 px-1 py-1 border rounded text-sm text-center';
+          const cur = Number(project[budgetFieldName(teamKey, q)]) || 0;
+          input.value = cur === 0 ? '' : cur;
+          input.placeholder = '0';
+          inputs[q] = input;
+
+          // Live (per-keystroke) update of cache, row average and footer — does NOT save.
+          input.addEventListener('input', () => {
+            const v = input.value.trim() === '' ? 0 : Number(input.value);
+            if (!isNaN(v) && v >= 0) {
+              project[budgetFieldName(teamKey, q)] = v;
+              project['budgetQ' + q] = (Number(project['budgetRd' + q]) || 0) + (Number(project['budgetPs' + q]) || 0);
+            }
+            updateRowAverage();
+            recomputeFooter();
+          });
+
+          // Commit (debounced save) on blur; revert invalid input.
+          input.addEventListener('blur', () => {
+            const raw = input.value.trim();
+            const v = raw === '' ? 0 : Number(input.value);
+            if (isNaN(v) || v < 0) {
+              const prev = Number(project[budgetFieldName(teamKey, q)]) || 0;
+              input.value = prev === 0 ? '' : prev;
+              updateRowAverage();
+              recomputeFooter();
+              showBudgetSaveStatus('error');
+              return;
+            }
+            project[budgetFieldName(teamKey, q)] = v;
+            project['budgetQ' + q] = (Number(project['budgetRd' + q]) || 0) + (Number(project['budgetPs' + q]) || 0);
+            scheduleBudgetSave(project, sub);
+          });
+
+          input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+          });
+
+          td.appendChild(input);
+        } else {
+          const span = document.createElement('span');
+          span.textContent = budgetFmt(budgetQuarterValue(project, q, sub));
+          td.appendChild(span);
+        }
         tr.appendChild(td);
       });
 
-      // Total FTE (read-only computed)
-      const totalTd = document.createElement('td');
-      totalTd.className = 'py-2 px-2 text-center font-medium';
-      const updateTotal = () => {
-        const sum = ['Q1','Q2','Q3','Q4'].reduce((s, q) => s + (Number(inputs[q].value) || 0), 0);
-        totalTd.textContent = sum % 1 === 0 ? sum : sum.toFixed(1);
-      };
-      updateTotal();
-      Object.values(inputs).forEach(inp => inp.addEventListener('input', updateTotal));
       tr.appendChild(totalTd);
-
-      // Save button
-      const actionsTd = document.createElement('td');
-      actionsTd.className = 'py-2 px-2';
-      const saveBtn = document.createElement('button');
-      saveBtn.className = 'px-3 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700';
-      saveBtn.textContent = 'Save';
-      saveBtn.addEventListener('click', async () => {
-        try {
-          saveBtn.textContent = '...';
-          saveBtn.disabled = true;
-          const resp = await fetch('/api/UpdateProject', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              projectId: project.id,
-              name: project.name,
-              color: project.color,
-              isActive: project.isActive,
-              budgetQ1: Number(inputs.Q1.value) || 0,
-              budgetQ2: Number(inputs.Q2.value) || 0,
-              budgetQ3: Number(inputs.Q3.value) || 0,
-              budgetQ4: Number(inputs.Q4.value) || 0
-            })
-          });
-          if (!resp.ok) throw new Error(await resp.text());
-          saveBtn.textContent = 'Saved!';
-          saveBtn.className = 'px-3 py-1 bg-green-600 text-white rounded text-xs';
-          setTimeout(() => {
-            saveBtn.textContent = 'Save';
-            saveBtn.className = 'px-3 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700';
-            saveBtn.disabled = false;
-          }, 1500);
-        } catch (err) {
-          saveBtn.textContent = 'Error';
-          saveBtn.className = 'px-3 py-1 bg-red-600 text-white rounded text-xs';
-          console.error('Error saving budget:', err);
-          setTimeout(() => {
-            saveBtn.textContent = 'Save';
-            saveBtn.className = 'px-3 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700';
-            saveBtn.disabled = false;
-          }, 2000);
-        }
-      });
-      actionsTd.appendChild(saveBtn);
-      tr.appendChild(actionsTd);
-
+      updateRowAverage();
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
-    contentEl.appendChild(table);
+
+    // Footer row: per-quarter column sums + grand average under Total FTE
+    const tfoot = document.createElement('tfoot');
+    const footRow = document.createElement('tr');
+    footRow.className = 'border-t-2 font-semibold text-slate-700';
+    const labelTd = document.createElement('td');
+    labelTd.className = 'py-2 px-2';
+    labelTd.textContent = 'Total';
+    footRow.appendChild(labelTd);
+    BUDGET_QUARTERS.forEach(q => {
+      const td = document.createElement('td');
+      td.className = 'py-2 px-2 text-center';
+      footerCells[q] = td;
+      footRow.appendChild(td);
+    });
+    const grandTd = document.createElement('td');
+    grandTd.className = 'py-2 px-2 text-center';
+    footerCells.total = grandTd;
+    footRow.appendChild(grandTd);
+    tfoot.appendChild(footRow);
+    table.appendChild(tfoot);
+
+    recomputeFooter();
+    subContentEl.appendChild(table);
+  }
+
+  // --- Auto-save (debounced per project+team; reads the cache as source of truth) ---
+  const budgetSaveTimers = {}; // key: projectId|sub -> { run, timeoutId }
+  let budgetPendingSaves = 0;
+  let budgetBatchHadError = false;
+
+  function scheduleBudgetSave(project, sub) {
+    const key = project.id + '|' + sub;
+    if (budgetSaveTimers[key]) clearTimeout(budgetSaveTimers[key].timeoutId);
+    const run = () => saveBudgetCell(project, sub);
+    const timeoutId = setTimeout(() => { delete budgetSaveTimers[key]; run(); }, 600);
+    budgetSaveTimers[key] = { run, timeoutId };
+  }
+
+  function flushBudgetSaves() {
+    Object.keys(budgetSaveTimers).forEach(key => {
+      const entry = budgetSaveTimers[key];
+      if (!entry) return;
+      clearTimeout(entry.timeoutId);
+      delete budgetSaveTimers[key];
+      entry.run();
+    });
+  }
+
+  function buildBudgetSavePayload(project, sub) {
+    const teamKey = budgetTeamKey(sub);
+    const payload = {
+      projectId: project.id,
+      name: project.name,
+      color: project.color,
+      isActive: project.isActive
+    };
+    BUDGET_QUARTERS.forEach(q => {
+      payload[budgetFieldName(teamKey, q)] = Number(project[budgetFieldName(teamKey, q)]) || 0;
+      payload['budget' + q] = (Number(project['budgetRd' + q]) || 0) + (Number(project['budgetPs' + q]) || 0);
+    });
+    return payload;
+  }
+
+  function saveBudgetCell(project, sub) {
+    if (budgetTeamKey(sub) === null) return; // never save from the read-only Total tab
+    if (budgetPendingSaves === 0) budgetBatchHadError = false;
+    budgetPendingSaves++;
+    showBudgetSaveStatus('saving');
+
+    fetch('/api/UpdateProject', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildBudgetSavePayload(project, sub))
+    }).then(resp => {
+      if (!resp.ok) return resp.text().then(t => { throw new Error(t || ('HTTP ' + resp.status)); });
+    }).then(() => {
+      finishBudgetSave(false);
+    }).catch(err => {
+      console.error('Error saving budget:', err);
+      finishBudgetSave(true);
+    });
+  }
+
+  function finishBudgetSave(isError) {
+    if (isError) budgetBatchHadError = true;
+    budgetPendingSaves = Math.max(0, budgetPendingSaves - 1);
+    if (budgetPendingSaves === 0) {
+      showBudgetSaveStatus(budgetBatchHadError ? 'error' : 'saved');
+    } else if (isError) {
+      showBudgetSaveStatus('error');
+    }
+  }
+
+  function showBudgetSaveStatus(state) {
+    const slot = document.getElementById('budget-save-status');
+    if (!slot) return;
+    slot.textContent = '';
+    if (!state) return;
+    const pill = document.createElement('span');
+    if (state === 'saving') {
+      pill.className = 'inline-block px-3 py-1 rounded text-xs bg-blue-50 text-blue-700 border border-blue-200';
+      pill.textContent = 'Saving…';
+    } else if (state === 'saved') {
+      pill.className = 'inline-block px-3 py-1 rounded text-xs bg-green-50 text-green-700 border border-green-200';
+      pill.textContent = 'All changes saved';
+    } else {
+      pill.className = 'inline-block px-3 py-1 rounded text-xs bg-red-50 text-red-700 border border-red-200';
+      pill.textContent = 'Couldn’t save — changes may not be stored. Check your connection.';
+    }
+    slot.appendChild(pill);
+    if (state === 'saved') {
+      setTimeout(() => { if (slot.firstChild === pill) slot.textContent = ''; }, 2000);
+    }
   }
 
   // ====== BUDGET EXCEL EXPORT/IMPORT ======
-  function exportBudgetsToExcel(activeProjects) {
-    const rows = activeProjects.map(p => ({
+  function exportBudgetsToExcel(projects, sub) {
+    const teamLabel = sub === 'rd' ? 'R&D' : sub === 'ps' ? 'P&S' : 'Total';
+    const fileTeam = sub === 'rd' ? 'RD' : sub === 'ps' ? 'PS' : 'Total';
+    const rows = projects.map(p => ({
       'Project ID': p.id,
       'Project Name': p.name,
-      'Q1 FTE': p.budgetQ1 || 0,
-      'Q2 FTE': p.budgetQ2 || 0,
-      'Q3 FTE': p.budgetQ3 || 0,
-      'Q4 FTE': p.budgetQ4 || 0
+      'Q1 FTE': budgetQuarterValue(p, 'Q1', sub),
+      'Q2 FTE': budgetQuarterValue(p, 'Q2', sub),
+      'Q3 FTE': budgetQuarterValue(p, 'Q3', sub),
+      'Q4 FTE': budgetQuarterValue(p, 'Q4', sub)
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -693,13 +974,13 @@
     ];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Budgets');
+    XLSX.utils.book_append_sheet(wb, ws, teamLabel + ' Budgets');
 
     const today = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, 'EngTime_Budgets_' + today + '.xlsx');
+    XLSX.writeFile(wb, 'EngTime_Budgets_' + fileTeam + '_' + today + '.xlsx');
   }
 
-  function handleBudgetImport(file, activeProjects, contentEl) {
+  function handleBudgetImport(file, projects, contentEl, sub) {
     const reader = new FileReader();
     reader.onload = function(e) {
       try {
@@ -735,7 +1016,7 @@
 
         // Validate each row
         const errors = [];
-        const activeIds = new Set(activeProjects.map(p => p.id));
+        const activeIds = new Set(projects.map(p => p.id));
         const importedRows = [];
 
         rows.forEach((row, idx) => {
@@ -769,13 +1050,13 @@
           return;
         }
 
-        const changes = computeBudgetDiff(importedRows, activeProjects);
+        const changes = computeBudgetDiff(importedRows, projects, sub);
         if (changes.length === 0) {
           showImportMessage(contentEl, 'No changes detected. All imported values match current budgets.', 'blue');
           return;
         }
 
-        showImportPreviewModal(changes, contentEl);
+        showImportPreviewModal(changes, contentEl, sub);
       } catch (err) {
         showImportMessage(contentEl, 'Failed to parse Excel file: ' + err.message, 'red');
       }
@@ -795,10 +1076,10 @@
         : 'bg-green-50 text-green-700 border border-green-200');
     msgDiv.textContent = message;
 
-    // Insert after button row
-    const btnRow = contentEl.querySelector('div.mb-4.flex.gap-2');
-    if (btnRow && btnRow.nextSibling) {
-      contentEl.insertBefore(msgDiv, btnRow.nextSibling);
+    // Insert above the sub-tab table if present, else append.
+    const subContent = contentEl.querySelector('#budget-subtab-content');
+    if (subContent) {
+      contentEl.insertBefore(msgDiv, subContent);
     } else {
       contentEl.appendChild(msgDiv);
     }
@@ -807,9 +1088,10 @@
     setTimeout(() => { if (msgDiv.parentNode) msgDiv.remove(); }, 8000);
   }
 
-  function computeBudgetDiff(importedRows, activeProjects) {
+  function computeBudgetDiff(importedRows, projects, sub) {
+    const teamKey = budgetTeamKey(sub);
     const projectMap = {};
-    activeProjects.forEach(p => { projectMap[p.id] = p; });
+    projects.forEach(p => { projectMap[p.id] = p; });
 
     const changes = [];
     importedRows.forEach(row => {
@@ -820,7 +1102,7 @@
       let hasChanges = false;
 
       ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
-        const oldVal = Number(project['budget' + q]) || 0;
+        const oldVal = Number(project[budgetFieldName(teamKey, q)]) || 0;
         const newVal = row[q.toLowerCase()];
         if (oldVal !== newVal) {
           diffs[q] = { old: oldVal, new: newVal };
@@ -841,7 +1123,10 @@
     return changes;
   }
 
-  function showImportPreviewModal(changes, contentEl) {
+  function showImportPreviewModal(changes, contentEl, sub) {
+    const teamKey = budgetTeamKey(sub);
+    const teamLabel = sub === 'rd' ? 'R&D' : 'P&S';
+
     // Full-screen overlay
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50';
@@ -854,7 +1139,7 @@
     header.className = 'p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b';
     const title = document.createElement('h3');
     title.className = 'text-lg font-bold text-indigo-800';
-    title.textContent = 'Import Budget Changes (' + changes.length + ' project' + (changes.length !== 1 ? 's' : '') + ')';
+    title.textContent = 'Import ' + teamLabel + ' Budget Changes (' + changes.length + ' project' + (changes.length !== 1 ? 's' : '') + ')';
     header.appendChild(title);
     modal.appendChild(header);
 
@@ -903,7 +1188,7 @@
           td.appendChild(document.createTextNode(' '));
           td.appendChild(newSpan);
         } else {
-          const currentVal = Number(change.project['budget' + q]) || 0;
+          const currentVal = Number(change.project[budgetFieldName(teamKey, q)]) || 0;
           td.textContent = currentVal;
         }
 
@@ -928,7 +1213,7 @@
     const applyBtn = document.createElement('button');
     applyBtn.className = 'px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700';
     applyBtn.textContent = 'Apply ' + changes.length + ' Change' + (changes.length !== 1 ? 's' : '');
-    applyBtn.addEventListener('click', () => applyBudgetChanges(changes, contentEl, overlay, applyBtn));
+    applyBtn.addEventListener('click', () => applyBudgetChanges(changes, contentEl, overlay, applyBtn, sub));
 
     footer.appendChild(cancelBtn);
     footer.appendChild(applyBtn);
@@ -943,7 +1228,8 @@
     });
   }
 
-  async function applyBudgetChanges(changes, contentEl, overlay, applyBtn) {
+  async function applyBudgetChanges(changes, contentEl, overlay, applyBtn, sub) {
+    const teamKey = budgetTeamKey(sub);
     applyBtn.disabled = true;
     applyBtn.textContent = 'Saving... (0/' + changes.length + ')';
 
@@ -951,20 +1237,20 @@
     for (let i = 0; i < changes.length; i++) {
       const change = changes[i];
       const project = change.project;
+
+      // Apply the imported team values to the cache and recompute the per-quarter totals
+      // (preserving the other team's existing contribution).
+      ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
+        const newTeamVal = change.changes[q] ? change.changes[q].new : (Number(project[budgetFieldName(teamKey, q)]) || 0);
+        project[budgetFieldName(teamKey, q)] = newTeamVal;
+        project['budgetQ' + q] = (Number(project['budgetRd' + q]) || 0) + (Number(project['budgetPs' + q]) || 0);
+      });
+
       try {
         const resp = await fetch('/api/UpdateProject', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            projectId: project.id,
-            name: project.name,
-            color: project.color,
-            isActive: project.isActive,
-            budgetQ1: change.changes.Q1 ? change.changes.Q1.new : (Number(project.budgetQ1) || 0),
-            budgetQ2: change.changes.Q2 ? change.changes.Q2.new : (Number(project.budgetQ2) || 0),
-            budgetQ3: change.changes.Q3 ? change.changes.Q3.new : (Number(project.budgetQ3) || 0),
-            budgetQ4: change.changes.Q4 ? change.changes.Q4.new : (Number(project.budgetQ4) || 0)
-          })
+          body: JSON.stringify(buildBudgetSavePayload(project, sub))
         });
         if (!resp.ok) throw new Error(await resp.text());
       } catch (err) {
@@ -1028,7 +1314,7 @@
     const sortedUsers = [...adminData.users].sort((a, b) => {
       if (a.isAdmin && !b.isAdmin) return -1;
       if (!a.isAdmin && b.isAdmin) return 1;
-      return (a.displayName || a.email || a.userId).localeCompare(b.displayName || b.email || b.userId);
+      return (a.displayName || a.email).localeCompare(b.displayName || b.email);
     });
 
     sortedUsers.forEach(user => {
@@ -1038,7 +1324,7 @@
       // Name
       const nameTd = document.createElement('td');
       nameTd.className = 'py-2 px-2 font-medium';
-      nameTd.textContent = user.displayName || user.email || user.userId;
+      nameTd.textContent = user.displayName || user.email;
       if (user.displayName) {
         nameTd.title = user.email;
       }
@@ -1049,7 +1335,7 @@
       emailTd.className = 'py-2 px-2';
       const emailSpan = document.createElement('span');
       emailSpan.className = 'text-sm text-slate-500';
-      emailSpan.textContent = user.email || user.userId;
+      emailSpan.textContent = user.email;
       emailTd.appendChild(emailSpan);
       tr.appendChild(emailTd);
 
@@ -1071,7 +1357,7 @@
           const resp = await fetch('/api/UpdateUser', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'toggleAdmin', userId: user.userId })
+            body: JSON.stringify({ action: 'toggleAdmin', userEmail: user.email })
           });
           if (!resp.ok) {
             const errText = await resp.text();
@@ -1134,7 +1420,7 @@
     if (!projResp.ok || !usersResp.ok) throw new Error('Failed to load data');
     const projectsList = await projResp.json();
     const allUsers = (await usersResp.json()).sort((a, b) =>
-      (a.displayName || a.email || a.userId).localeCompare(b.displayName || b.email || b.userId)
+      (a.displayName || a.email).localeCompare(b.displayName || b.email)
     );
 
     contentEl.textContent = '';
@@ -1157,10 +1443,10 @@
     select.className = 'px-3 py-2 border rounded text-sm flex-1';
     allUsers.forEach(user => {
       const opt = document.createElement('option');
-      opt.value = user.userId;
+      opt.value = user.email;
       opt.textContent = user.displayName
-        ? user.displayName + ' (' + (user.email || user.userId) + ')'
-        : (user.email || user.userId);
+        ? user.displayName + ' (' + user.email + ')'
+        : user.email;
       opt.dataset.email = user.email || '';
       select.appendChild(opt);
     });
@@ -1181,7 +1467,7 @@
     // State for current user's timesheets
     let currentUserData = null;
 
-    async function loadUserData(userId) {
+    async function loadUserData(userEmail) {
       weekView.textContent = '';
       const loadDiv = document.createElement('div');
       loadDiv.className = 'text-center py-4 text-slate-400';
@@ -1189,12 +1475,12 @@
       weekView.appendChild(loadDiv);
 
       try {
-        const resp = await fetch('/api/GetAllUsersTimesheets?userId=' + encodeURIComponent(userId));
+        const resp = await fetch('/api/GetAllUsersTimesheets?userEmail=' + encodeURIComponent(userEmail));
         if (!resp.ok) throw new Error('Failed to load timesheets');
         const data = await resp.json();
-        currentUserData = data.find(u => u.userId === userId) || { userId, userEmail: '', weeks: {} };
+        currentUserData = data.find(u => u.userEmail === userEmail) || { userEmail, weeks: {} };
       } catch (err) {
-        currentUserData = { userId: select.value, userEmail: '', weeks: {} };
+        currentUserData = { userEmail: select.value, weeks: {} };
       }
       renderUserTimesheets(weekView, currentUserData, projectsList, select);
     }
@@ -1429,8 +1715,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            targetUserId: userSelect.value,
-            targetUserEmail: selectedOpt.dataset.email || '',
+            targetUserEmail: userSelect.value,
             week: weekKey,
             WeekStartDate: weekKey.split(' - ')[0],
             entries: editEntries.filter(e => e.projectId).map(e => ({
@@ -1572,6 +1857,124 @@
   }
   // ====== ANALYTICS TAB ======
 
+  // --- Analytics helpers ---
+  function getUtilization(project) {
+    if (!project.budgetHours || project.budgetHours === 0) {
+      return project.actualHours > 0 ? Infinity : 0;
+    }
+    return project.actualHours / project.budgetHours;
+  }
+
+  function formatUtilPct(utilization) {
+    if (!isFinite(utilization)) return 'No Budget';
+    return (utilization * 100).toFixed(1) + '%';
+  }
+
+  function getStatusColor(utilization) {
+    if (utilization > 1.0) return '#EF4444';   // red-500
+    if (utilization >= 0.8) return '#F59E0B';   // amber-500
+    return '#10B981';                            // emerald-500
+  }
+
+  function getStatusLabel(utilization) {
+    if (utilization > 1.0) return 'Over Budget';
+    if (utilization >= 0.8) return 'Approaching';
+    return 'Under Budget';
+  }
+
+  function sortProjectsByHours(data) {
+    return data.slice().sort(function(a, b) {
+      return b.actualHours - a.actualHours;
+    });
+  }
+
+  function formatNumber(n) {
+    return n.toLocaleString('en-US', { maximumFractionDigits: 1 });
+  }
+
+  function truncateLabel(label, maxLen) {
+    if (label.length <= maxLen) return label;
+    return label.substring(0, maxLen - 1) + '\u2026';
+  }
+
+  // Pick the FTE budget for a quarter based on the selected team.
+  // 'eng' (Engineering) uses the persisted total (budgetQ = R&D + P&S); 'rd'/'ps' use the team field.
+  function budgetTeamFte(project, q, team) {
+    if (team === 'rd') return Number(project['budgetRd' + q]) || 0;
+    if (team === 'ps') return Number(project['budgetPs' + q]) || 0;
+    return Number(project['budget' + q]) || 0;
+  }
+
+  function calcYtdBudgetHours(project, startDate, endDate, team) {
+    var now = new Date();
+    // Quarter boundaries follow the SELECTED range's year (budgets aren't year-specific), so a
+    // prior-year window — e.g. "Last Week" in early January — lines up with the correct quarters
+    // instead of computing a 0-hour budget (which would mis-flag every project as over budget).
+    var quarterYear = startDate ? new Date(startDate + 'T00:00:00').getFullYear() : now.getFullYear();
+    var quarterRanges = [
+      { fte: budgetTeamFte(project, 'Q1', team), start: new Date(quarterYear, 0, 1),  end: new Date(quarterYear, 2, 31) },
+      { fte: budgetTeamFte(project, 'Q2', team), start: new Date(quarterYear, 3, 1),  end: new Date(quarterYear, 5, 30) },
+      { fte: budgetTeamFte(project, 'Q3', team), start: new Date(quarterYear, 6, 1),  end: new Date(quarterYear, 8, 30) },
+      { fte: budgetTeamFte(project, 'Q4', team), start: new Date(quarterYear, 9, 1),  end: new Date(quarterYear, 11, 31) }
+    ];
+
+    // Find Monday of the current week (absolute cutoff — never count beyond today's week)
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var dayOfWeek = today.getDay();
+    var mondayOfCurrentWeek = new Date(today);
+    mondayOfCurrentWeek.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
+
+    // Use selected date range, falling back to Jan 1 → current Monday
+    var yearStart = startDate ? new Date(startDate + 'T00:00:00') : new Date(quarterYear, 0, 1);
+    var endBound = endDate ? new Date(new Date(endDate + 'T00:00:00').getTime() + 86400000) : mondayOfCurrentWeek;
+    var cutoffDate = endBound < mondayOfCurrentWeek ? endBound : mondayOfCurrentWeek;
+
+    var totalHours = 0;
+    for (var i = 0; i < quarterRanges.length; i++) {
+      var q = quarterRanges[i];
+      if (q.fte === 0) continue;
+      // Effective range for this quarter within the YTD window
+      var rangeStart = q.start < yearStart ? yearStart : q.start;
+      var rangeEnd = q.end >= cutoffDate ? cutoffDate : new Date(q.end.getTime() + 86400000);
+      if (rangeStart >= rangeEnd) continue;
+
+      // Count Mondays in [rangeStart, rangeEnd) — each Monday = one completed week
+      var d = new Date(rangeStart);
+      var dow = d.getDay();
+      if (dow !== 1) d.setDate(d.getDate() + ((8 - dow) % 7));
+      var weeks = 0;
+      while (d < rangeEnd) {
+        weeks++;
+        d.setDate(d.getDate() + 7);
+      }
+      totalHours += weeks * q.fte * 40;
+    }
+    return totalHours;
+  }
+
+  let analyticsChartInstance = null;
+
+  // Format a Date as YYYY-MM-DD using local (not UTC) parts so the week boundary doesn't shift.
+  function fmtLocalDate(d) {
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+
+  // Previous work week: Monday → Friday of the week before the current one.
+  function getLastWeekRange() {
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var dow = today.getDay(); // 0=Sun..6=Sat
+    var thisMonday = new Date(today);
+    thisMonday.setDate(today.getDate() - ((dow + 6) % 7));
+    var lastMonday = new Date(thisMonday);
+    lastMonday.setDate(thisMonday.getDate() - 7);
+    var lastFriday = new Date(lastMonday);
+    lastFriday.setDate(lastMonday.getDate() + 4);
+    return { startDate: fmtLocalDate(lastMonday), endDate: fmtLocalDate(lastFriday) };
+  }
+
   function getDateRangeFromPreset(preset) {
     if (preset === 'custom') return null;
 
@@ -1580,6 +1983,7 @@
     if (preset === 'ytd') {
       return { startDate: year + '-01-01', endDate: new Date().toISOString().slice(0, 10) };
     }
+    if (preset === 'lastweek') return getLastWeekRange();
     if (preset === 'q1') return { startDate: year + '-01-01', endDate: year + '-03-31' };
     if (preset === 'q2') return { startDate: year + '-04-01', endDate: year + '-06-30' };
     if (preset === 'q3') return { startDate: year + '-07-01', endDate: year + '-09-30' };
@@ -1617,6 +2021,7 @@
     select.className = 'px-3 py-2 border rounded text-sm';
     const presets = [
       { value: 'ytd', label: 'Year to Date' },
+      { value: 'lastweek', label: 'Last Week' },
       { value: 'q1', label: 'Q1 (Jan–Mar)' },
       { value: 'q2', label: 'Q2 (Apr–Jun)' },
       { value: 'q3', label: 'Q3 (Jul–Sep)' },
@@ -1631,14 +2036,20 @@
       select.appendChild(opt);
     });
 
-    // Custom date pickers (hidden unless Custom is selected)
+    // Date pickers — ALWAYS visible. A preset fills these and applies; editing them
+    // by hand switches the dropdown to Custom. Seed from the saved preset (or saved
+    // custom dates) so the inputs reflect the active range on load.
+    const initialRange = savedPreset === 'custom'
+      ? { startDate: savedCustomStart, endDate: savedCustomEnd }
+      : getDateRangeFromPreset(savedPreset);
+
     const customRow = document.createElement('div');
-    customRow.className = 'flex gap-2 items-center' + (savedPreset !== 'custom' ? ' hidden' : '');
+    customRow.className = 'flex gap-2 items-center';
 
     const startInput = document.createElement('input');
     startInput.type = 'date';
     startInput.className = 'px-2 py-1.5 border rounded text-sm';
-    startInput.value = savedCustomStart;
+    startInput.value = (initialRange && initialRange.startDate) || '';
 
     const toLabel = document.createElement('span');
     toLabel.className = 'text-sm text-slate-500';
@@ -1647,7 +2058,7 @@
     const endInput = document.createElement('input');
     endInput.type = 'date';
     endInput.className = 'px-2 py-1.5 border rounded text-sm';
-    endInput.value = savedCustomEnd;
+    endInput.value = (initialRange && initialRange.endDate) || '';
 
     const applyBtn = document.createElement('button');
     applyBtn.className = 'px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700';
@@ -1658,43 +2069,139 @@
     customRow.appendChild(endInput);
     customRow.appendChild(applyBtn);
 
+    // Team selector (Engineering total / R&D / P&S) — switches the budget baseline only
+    const savedTeam = localStorage.getItem('analyticsTeam') || 'eng';
+    const teamLabel = document.createElement('label');
+    teamLabel.className = 'text-sm font-medium text-slate-700 ml-2';
+    teamLabel.textContent = 'Team:';
+
+    const teamSelect = document.createElement('select');
+    teamSelect.className = 'px-3 py-2 border rounded text-sm';
+    [
+      { value: 'eng', label: 'Engineering' },
+      { value: 'rd', label: 'R&D' },
+      { value: 'ps', label: 'P&S' }
+    ].forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.value;
+      opt.textContent = t.label;
+      if (t.value === savedTeam) opt.selected = true;
+      teamSelect.appendChild(opt);
+    });
+
+    // Include inactive projects toggle (default off)
+    const inactiveWrap = document.createElement('label');
+    inactiveWrap.className = 'flex items-center gap-2 text-sm text-slate-700 ml-2 cursor-pointer';
+    const inactiveCheckbox = document.createElement('input');
+    inactiveCheckbox.type = 'checkbox';
+    inactiveCheckbox.className = 'rounded border-gray-300';
+    inactiveCheckbox.checked = localStorage.getItem('analyticsIncludeInactive') === 'true';
+    const inactiveText = document.createElement('span');
+    inactiveText.textContent = 'Include inactive projects';
+    inactiveWrap.appendChild(inactiveCheckbox);
+    inactiveWrap.appendChild(inactiveText);
+
+    // Keep the Team label + select together so they wrap as one unit (the always-visible
+    // date inputs widen the row and would otherwise orphan the "Team:" label).
+    const teamRow = document.createElement('div');
+    teamRow.className = 'flex gap-2 items-center';
+    teamRow.appendChild(teamLabel);
+    teamRow.appendChild(teamSelect);
+
     selectorRow.appendChild(label);
     selectorRow.appendChild(select);
     selectorRow.appendChild(customRow);
+    selectorRow.appendChild(teamRow);
+    selectorRow.appendChild(inactiveWrap);
     contentEl.appendChild(selectorRow);
 
-    // Content area for charts/tables (below selector)
+    // View toggle (Absolute Hours / % of Budget)
+    let currentView = 'hours';
+    let currentTeam = savedTeam;
+    let includeInactive = inactiveCheckbox.checked;
+    let cachedAnalytics = null;
+    let cachedStartDate = null;
+    let cachedEndDate = null;
+
+    // Re-render from cache (team / inactive / view changes need no re-fetch — the data is all there)
+    function rerender() {
+      if (cachedAnalytics) {
+        renderAnalyticsContent(analyticsContent, cachedAnalytics, currentView, cachedStartDate, cachedEndDate, currentTeam, includeInactive);
+      }
+    }
+
+    const toggleRow = document.createElement('div');
+    toggleRow.className = 'mb-4 flex items-center border border-gray-300 rounded-lg overflow-hidden shadow-sm w-fit';
+
+    const btnHours = document.createElement('button');
+    btnHours.className = 'px-4 py-2 text-sm font-medium border-r border-gray-300 focus:outline-none transition-all duration-200 bg-slate-800 text-white';
+    btnHours.textContent = 'Absolute Hours';
+
+    const btnPercent = document.createElement('button');
+    btnPercent.className = 'px-4 py-2 text-sm font-medium focus:outline-none transition-all duration-200 bg-white text-slate-500 hover:bg-slate-50';
+    btnPercent.textContent = '% of Budget';
+
+    function setActiveToggle(view) {
+      currentView = view;
+      if (view === 'hours') {
+        btnHours.className = 'px-4 py-2 text-sm font-medium border-r border-gray-300 focus:outline-none transition-all duration-200 bg-slate-800 text-white';
+        btnPercent.className = 'px-4 py-2 text-sm font-medium focus:outline-none transition-all duration-200 bg-white text-slate-500 hover:bg-slate-50';
+      } else {
+        btnHours.className = 'px-4 py-2 text-sm font-medium border-r border-gray-300 focus:outline-none transition-all duration-200 bg-white text-slate-500 hover:bg-slate-50';
+        btnPercent.className = 'px-4 py-2 text-sm font-medium focus:outline-none transition-all duration-200 bg-slate-800 text-white';
+      }
+    }
+
+    btnHours.addEventListener('click', () => {
+      if (currentView === 'hours') return;
+      setActiveToggle('hours');
+      rerender();
+    });
+
+    btnPercent.addEventListener('click', () => {
+      if (currentView === 'percent') return;
+      setActiveToggle('percent');
+      rerender();
+    });
+
+    // Team + inactive toggles re-render from the cached response (no network round-trip)
+    teamSelect.addEventListener('change', () => {
+      currentTeam = teamSelect.value;
+      localStorage.setItem('analyticsTeam', currentTeam);
+      rerender();
+    });
+
+    inactiveCheckbox.addEventListener('change', () => {
+      includeInactive = inactiveCheckbox.checked;
+      localStorage.setItem('analyticsIncludeInactive', includeInactive ? 'true' : 'false');
+      rerender();
+    });
+
+    toggleRow.appendChild(btnHours);
+    toggleRow.appendChild(btnPercent);
+    contentEl.appendChild(toggleRow);
+
+    // Content area for charts/tables (below selector + toggle)
     const analyticsContent = document.createElement('div');
     contentEl.appendChild(analyticsContent);
 
     // Fetch and render logic
     async function fetchAndRender() {
-      let startDate = null;
-      let endDate = null;
-      const preset = select.value;
+      // The two date inputs are the single source of truth; presets just fill them.
+      const startDate = startInput.value || null;
+      const endDate = endInput.value || null;
 
-      localStorage.setItem('analyticsDatePreset', preset);
+      localStorage.setItem('analyticsDatePreset', select.value);
+      localStorage.setItem('analyticsCustomStart', startDate || '');
+      localStorage.setItem('analyticsCustomEnd', endDate || '');
 
-      if (preset === 'custom') {
-        startDate = startInput.value || null;
-        endDate = endInput.value || null;
-        localStorage.setItem('analyticsCustomStart', startDate || '');
-        localStorage.setItem('analyticsCustomEnd', endDate || '');
-
-        if (!startDate || !endDate) {
-          analyticsContent.textContent = '';
-          const hint = document.createElement('div');
-          hint.className = 'text-center py-8 text-slate-400';
-          hint.textContent = 'Select start and end dates, then click Apply.';
-          analyticsContent.appendChild(hint);
-          return;
-        }
-      } else {
-        const range = getDateRangeFromPreset(preset);
-        if (range) {
-          startDate = range.startDate;
-          endDate = range.endDate;
-        }
+      if (!startDate || !endDate) {
+        analyticsContent.textContent = '';
+        const hint = document.createElement('div');
+        hint.className = 'text-center py-8 text-slate-400';
+        hint.textContent = 'Select start and end dates, then click Apply.';
+        analyticsContent.appendChild(hint);
+        return;
       }
 
       // Show loading
@@ -1709,7 +2216,10 @@
         const response = await fetch(url);
         if (!response.ok) throw new Error('Failed to load analytics');
         const analytics = await response.json();
-        renderAnalyticsContent(analyticsContent, analytics);
+        cachedAnalytics = analytics;
+        cachedStartDate = startDate;
+        cachedEndDate = endDate;
+        rerender();
       } catch (err) {
         analyticsContent.textContent = '';
         const errDiv = document.createElement('div');
@@ -1721,13 +2231,24 @@
 
     // Event wiring
     select.addEventListener('change', () => {
-      if (select.value === 'custom') {
-        customRow.classList.remove('hidden');
-      } else {
-        customRow.classList.add('hidden');
-        fetchAndRender();
+      const preset = select.value;
+      localStorage.setItem('analyticsDatePreset', preset);
+      if (preset === 'custom') return; // keep current dates; user edits + clicks Apply
+      const range = getDateRangeFromPreset(preset);
+      if (range && range.startDate && range.endDate) {
+        startInput.value = range.startDate;
+        endInput.value = range.endDate;
       }
+      fetchAndRender();
     });
+
+    // Editing a date by hand means the range is no longer a named preset
+    function markCustom() {
+      select.value = 'custom';
+      localStorage.setItem('analyticsDatePreset', 'custom');
+    }
+    startInput.addEventListener('change', markCustom);
+    endInput.addEventListener('change', markCustom);
 
     applyBtn.addEventListener('click', () => fetchAndRender());
 
@@ -1735,10 +2256,20 @@
     await fetchAndRender();
   }
 
-  function renderAnalyticsContent(container, analytics) {
+  function renderAnalyticsContent(container, analytics, view, startDate, endDate, team, includeInactive) {
+    // Destroy previous chart before clearing DOM to prevent memory leak
+    if (analyticsChartInstance) {
+      analyticsChartInstance.destroy();
+      analyticsChartInstance = null;
+    }
     container.textContent = '';
 
-    if (analytics.length === 0) {
+    // Filter out inactive projects unless explicitly included (default: hide them)
+    const data = (analytics || []).filter(function(p) {
+      return includeInactive || p.isActive !== false;
+    });
+
+    if (data.length === 0) {
       const emptyDiv = document.createElement('div');
       emptyDiv.className = 'text-center py-8 text-slate-400';
       emptyDiv.textContent = 'No analytics data available for this date range.';
@@ -1746,188 +2277,465 @@
       return;
     }
 
-    // Chart container
-    const chartContainer = document.createElement('div');
-    chartContainer.className = 'mb-6';
-    chartContainer.style.height = '400px';
+    // Recalculate budget hours client-side against the selected team's FTE budget
+    data.forEach(function(p) {
+      p.budgetHours = calcYtdBudgetHours(p, startDate, endDate, team);
+      p.isOverBudget = p.actualHours > p.budgetHours;
+      p.overBy = p.isOverBudget ? p.actualHours - p.budgetHours : 0;
+    });
+
+    const sorted = sortProjectsByHours(data);
+    // Chart.js renders horizontal bars bottom-to-top, so reverse for display
+    const displayData = sorted.slice().reverse();
+
+    // --- Chart Card ---
+    const chartCard = document.createElement('div');
+    chartCard.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-6';
+    const chartWrap = document.createElement('div');
+    // Height grows with the project count so every y-axis label has room to render
+    // (paired with autoSkip:false below, this stops Chart.js from dropping labels).
+    const chartHeight = Math.max(480, displayData.length * 46 + 90);
+    chartWrap.style.cssText = 'position:relative;width:100%;height:' + chartHeight + 'px;';
     const canvas = document.createElement('canvas');
-    canvas.id = 'analytics-chart';
-    chartContainer.appendChild(canvas);
-    container.appendChild(chartContainer);
+    chartWrap.appendChild(canvas);
+    chartCard.appendChild(chartWrap);
+    container.appendChild(chartCard);
 
-    // Build chart data
-    const labels = analytics.map(p => p.projectName);
-    const budgetData = analytics.map(p => p.budgetHours);
-    const actualData = analytics.map(p => p.actualHours);
-    const barColors = analytics.map(p => p.isOverBudget ? '#EF4444' : '#6366F1');
+    if (view === 'hours') {
+      // Paired Budget (gray) + Actual (status-colored) bars
+      const labels = displayData.map(p => truncateLabel(p.projectName, 32));
+      const budgetValues = displayData.map(p => p.budgetHours);
+      const actualValues = displayData.map(p => p.actualHours);
+      const actualColors = displayData.map(p => getStatusColor(getUtilization(p)));
 
-    // Destroy existing chart if any
-    const existingChart = Chart.getChart(canvas);
-    if (existingChart) existingChart.destroy();
-
-    new Chart(canvas.getContext('2d'), {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Budget Hours',
-            data: budgetData,
-            backgroundColor: '#CBD5E1',
-            borderRadius: 4
-          },
-          {
-            label: 'Actual Hours',
-            data: actualData,
-            backgroundColor: barColors,
-            borderRadius: 4
-          }
-        ]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            beginAtZero: true,
-            title: { display: true, text: 'Hours' }
-          }
+      analyticsChartInstance = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Budget',
+              data: budgetValues,
+              backgroundColor: '#E5E7EB',
+              borderColor: '#D1D5DB',
+              borderWidth: 1,
+              borderRadius: 3,
+              barPercentage: 0.7,
+              categoryPercentage: 0.8,
+              order: 2
+            },
+            {
+              label: 'Actual',
+              data: actualValues,
+              backgroundColor: actualColors,
+              borderColor: actualColors.slice(),
+              borderWidth: 1,
+              borderRadius: 3,
+              barPercentage: 0.7,
+              categoryPercentage: 0.8,
+              order: 1
+            }
+          ]
         },
-        plugins: {
-          title: {
-            display: true,
-            text: 'Budget vs Actual Hours by Project',
-            font: { size: 16, weight: 'bold' }
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 600, easing: 'easeInOutQuart' },
+          layout: { padding: { right: 20 } },
+          scales: {
+            x: {
+              beginAtZero: true,
+              title: { display: true, text: 'Hours', font: { size: 12, weight: '500' }, color: '#6B7280' },
+              grid: { color: '#F3F4F6' },
+              ticks: { color: '#6B7280', font: { size: 11 } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: '#374151', font: { size: 12 }, autoSkip: false }
+            }
           },
-          legend: {
-            position: 'bottom'
-          },
-          tooltip: {
-            callbacks: {
-              afterBody: function(tooltipItems) {
-                const idx = tooltipItems[0].dataIndex;
-                const proj = analytics[idx];
-                if (proj.isOverBudget) {
-                  return 'Over budget by ' + proj.overBy + ' hours';
+          plugins: {
+            legend: {
+              position: 'top',
+              align: 'end',
+              labels: {
+                usePointStyle: true,
+                pointStyle: 'rectRounded',
+                padding: 12,
+                font: { size: 11 },
+                color: '#6B7280',
+                generateLabels: function(chart) {
+                  return [
+                    { text: 'Budget', fillStyle: '#E5E7EB', strokeStyle: '#D1D5DB', lineWidth: 1, pointStyle: 'rectRounded' },
+                    { text: 'Actual', fillStyle: '#6B7280', strokeStyle: '#6B7280', lineWidth: 1, pointStyle: 'rectRounded' }
+                  ];
                 }
-                return '';
+              }
+            },
+            tooltip: {
+              backgroundColor: '#1E293B',
+              titleFont: { size: 13, weight: '600' },
+              bodyFont: { size: 12 },
+              padding: 12,
+              cornerRadius: 8,
+              displayColors: true,
+              callbacks: {
+                title: function(items) {
+                  return displayData[items[0].dataIndex].projectName;
+                },
+                label: function(context) {
+                  return '  ' + context.dataset.label + ': ' + formatNumber(context.parsed.x) + ' hrs';
+                },
+                afterBody: function(items) {
+                  const p = displayData[items[0].dataIndex];
+                  const util = getUtilization(p);
+                  return ['', 'Utilization: ' + formatUtilPct(util) + ' \u2014 ' + getStatusLabel(util)];
+                }
               }
             }
           }
         }
-      }
+      });
+    } else {
+      // % of Budget view — single dataset with 100% reference line
+      const labels = displayData.map(p => truncateLabel(p.projectName, 32));
+      const percentValues = displayData.map(p => {
+        const util = getUtilization(p);
+        return isFinite(util) ? util * 100 : 0;
+      });
+      const barColors = displayData.map(p => getStatusColor(getUtilization(p)));
+      const maxVal = Math.max.apply(null, percentValues);
+
+      analyticsChartInstance = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '% of Budget',
+            data: percentValues,
+            backgroundColor: barColors,
+            borderColor: barColors.slice(),
+            borderWidth: 1,
+            borderRadius: 3,
+            barPercentage: 0.55,
+            categoryPercentage: 0.8
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 600, easing: 'easeInOutQuart' },
+          layout: { padding: { top: 20, right: 20 } },
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: Math.ceil(maxVal / 20) * 20 + 10,
+              title: { display: true, text: '% of Budget', font: { size: 12, weight: '500' }, color: '#6B7280' },
+              grid: { color: '#F3F4F6' },
+              ticks: {
+                color: '#6B7280',
+                font: { size: 11 },
+                callback: function(value) { return value + '%'; }
+              }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: '#374151', font: { size: 12 }, autoSkip: false }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1E293B',
+              titleFont: { size: 13, weight: '600' },
+              bodyFont: { size: 12 },
+              padding: 12,
+              cornerRadius: 8,
+              displayColors: false,
+              callbacks: {
+                title: function(items) {
+                  return displayData[items[0].dataIndex].projectName;
+                },
+                label: function(context) {
+                  const p = displayData[context.dataIndex];
+                  const util = getUtilization(p);
+                  return [
+                    'Utilization: ' + formatUtilPct(util),
+                    'Actual: ' + formatNumber(p.actualHours) + ' hrs',
+                    'Budget: ' + formatNumber(p.budgetHours) + ' hrs',
+                    'Status: ' + getStatusLabel(util)
+                  ];
+                }
+              }
+            }
+          }
+        },
+        plugins: [{
+          id: 'budgetReferenceLine',
+          afterDraw: function(chartInstance) {
+            const xScale = chartInstance.scales.x;
+            if (xScale.max < 100) return; // reference line would be off-screen
+            const yScale = chartInstance.scales.y;
+            const ctx = chartInstance.ctx;
+            const xPos = xScale.getPixelForValue(100);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = '#4B5563';
+            ctx.lineWidth = 1.5;
+            ctx.moveTo(xPos, yScale.top);
+            ctx.lineTo(xPos, yScale.bottom);
+            ctx.stroke();
+
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#4B5563';
+            ctx.font = '500 11px Inter, system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('100% Budget', xPos, yScale.top - 8);
+            ctx.restore();
+          }
+        }]
+      });
+    }
+
+    // --- Project Breakdown Table ---
+    const breakdownContainer = document.createElement('div');
+    breakdownContainer.className = 'mt-4';
+    container.appendChild(breakdownContainer);
+
+    // Group projects by status
+    const overProjects = [];
+    const approachingProjects = [];
+    const onTrackProjects = [];
+
+    sorted.forEach(function(p) {
+      const util = getUtilization(p);
+      if (util > 1.0) overProjects.push(p);
+      else if (util >= 0.8) approachingProjects.push(p);
+      else onTrackProjects.push(p);
     });
 
-    // Over-budget detail table
-    const overBudgetProjects = analytics.filter(p => p.isOverBudget);
-    if (overBudgetProjects.length > 0) {
-      const sectionTitle = document.createElement('h4');
-      sectionTitle.className = 'text-lg font-bold text-red-600 mt-6 mb-3';
-      sectionTitle.textContent = 'Over-Budget Projects';
-      container.appendChild(sectionTitle);
+    const groups = [
+      { label: 'Over Budget', projects: overProjects, color: '#EF4444', borderClass: 'border-red-200', textClass: 'text-red-600', badgeBg: '#FEE2E2', tagBg: '#FEF2F2' },
+      { label: 'Approaching Budget', projects: approachingProjects, color: '#F59E0B', borderClass: 'border-amber-200', textClass: 'text-amber-600', badgeBg: '#FEF3C7', tagBg: '#FFFBEB' },
+      { label: 'Under Budget', projects: onTrackProjects, color: '#10B981', borderClass: 'border-emerald-200', textClass: 'text-emerald-600', badgeBg: '#D1FAE5', tagBg: '#ECFDF5' }
+    ];
 
-      overBudgetProjects.forEach(proj => {
-        const section = document.createElement('div');
-        section.className = 'mb-3 border border-red-200 rounded-lg overflow-hidden';
+    groups.forEach(function(group) {
+      if (group.projects.length === 0) return;
 
+      // Section header
+      const sectionHeader = document.createElement('div');
+      sectionHeader.className = 'flex items-center gap-2 mt-5 mb-2';
+
+      const dot = document.createElement('span');
+      dot.style.cssText = 'display:inline-block;width:10px;height:10px;border-radius:50%;background-color:' + group.color;
+      sectionHeader.appendChild(dot);
+
+      const sectionTitle = document.createElement('span');
+      sectionTitle.className = 'text-sm font-semibold ' + group.textClass;
+      sectionTitle.textContent = group.label;
+      sectionHeader.appendChild(sectionTitle);
+
+      const countBadge = document.createElement('span');
+      countBadge.className = 'text-xs font-medium px-2 py-0.5 rounded-full';
+      countBadge.style.backgroundColor = group.badgeBg;
+      countBadge.style.color = group.color;
+      countBadge.textContent = group.projects.length;
+      sectionHeader.appendChild(countBadge);
+
+      breakdownContainer.appendChild(sectionHeader);
+
+      // Project cards
+      group.projects.forEach(function(project) {
+        const util = getUtilization(project);
+        const utilPct = formatUtilPct(util);
+
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-lg border ' + group.borderClass + ' mb-2 overflow-hidden';
+        card.style.cssText = 'border-left-width:3px;border-left-color:' + group.color + ';transition:all 0.15s ease;';
+
+        // Card header
         const header = document.createElement('div');
-        header.className = 'px-4 py-3 bg-red-50 flex justify-between items-center cursor-pointer';
+        header.className = 'flex items-center justify-between px-4 py-3 cursor-pointer select-none';
 
         const headerLeft = document.createElement('div');
-        const projName = document.createElement('span');
-        projName.className = 'font-medium';
-        projName.textContent = proj.projectName;
-        const overLabel = document.createElement('span');
-        overLabel.className = 'ml-2 text-sm text-red-500';
-        overLabel.textContent = '+' + proj.overBy + ' hrs over';
-        headerLeft.appendChild(projName);
-        headerLeft.appendChild(overLabel);
+        headerLeft.className = 'flex items-center gap-3 min-w-0 flex-1';
 
-        const headerRight = document.createElement('span');
-        headerRight.className = 'text-sm text-slate-500';
-        headerRight.textContent = proj.actualHours + ' / ' + proj.budgetHours + ' hrs';
+        const chevron = document.createElement('span');
+        chevron.className = 'chevron-icon text-gray-400 text-xs flex-shrink-0';
+        chevron.textContent = '\u25B6';
+        headerLeft.appendChild(chevron);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'text-sm font-medium text-gray-800 truncate';
+        nameSpan.textContent = project.projectName;
+        headerLeft.appendChild(nameSpan);
+
+        // Over-budget tag
+        if (project.overBy > 0) {
+          const overTag = document.createElement('span');
+          overTag.className = 'flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full';
+          overTag.style.backgroundColor = group.tagBg;
+          overTag.style.color = group.color;
+          overTag.textContent = '+' + formatNumber(project.overBy) + ' hrs over';
+          headerLeft.appendChild(overTag);
+        }
+
+        const headerRight = document.createElement('div');
+        headerRight.className = 'flex items-center gap-4 flex-shrink-0 ml-4';
+
+        // Utilization mini bar
+        const barWrap = document.createElement('div');
+        barWrap.className = 'hidden sm:block';
+        barWrap.style.width = '80px';
+        const barTrack = document.createElement('div');
+        barTrack.className = 'util-bar-track';
+        const barFill = document.createElement('div');
+        barFill.className = 'util-bar-fill';
+        barFill.style.width = Math.min(util * 100, 100) + '%';
+        barFill.style.backgroundColor = group.color;
+        barTrack.appendChild(barFill);
+        barWrap.appendChild(barTrack);
+        headerRight.appendChild(barWrap);
+
+        // Hours text
+        const hoursText = document.createElement('span');
+        hoursText.className = 'text-sm text-gray-500 whitespace-nowrap';
+        hoursText.textContent = formatNumber(project.actualHours) + ' / ' + formatNumber(project.budgetHours) + ' hrs';
+        headerRight.appendChild(hoursText);
+
+        // Utilization badge
+        const utilBadge = document.createElement('span');
+        utilBadge.className = 'text-xs font-semibold whitespace-nowrap';
+        utilBadge.style.color = group.color;
+        utilBadge.textContent = utilPct;
+        headerRight.appendChild(utilBadge);
 
         header.appendChild(headerLeft);
         header.appendChild(headerRight);
 
+        // Card body (expandable)
         const body = document.createElement('div');
-        body.className = 'px-4 py-2 hidden';
+        body.className = 'project-card-body px-4 border-t ' + group.borderClass;
 
-        // User breakdown table
-        const userTable = document.createElement('table');
-        userTable.className = 'w-full text-sm';
-
-        const utHead = document.createElement('thead');
-        const utHeaderRow = document.createElement('tr');
-        utHeaderRow.className = 'text-left text-slate-500';
-        ['User', 'Hours'].forEach(text => {
-          const th = document.createElement('th');
-          th.className = 'py-1 px-2';
-          th.textContent = text;
-          utHeaderRow.appendChild(th);
+        const users = (project.userBreakdown || []).slice().sort(function(a, b) {
+          return b.totalHours - a.totalHours;
         });
-        utHead.appendChild(utHeaderRow);
-        userTable.appendChild(utHead);
 
-        const utBody = document.createElement('tbody');
-        proj.userBreakdown.forEach(user => {
+        const table = document.createElement('table');
+        table.className = 'w-full text-sm';
+
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        headRow.className = 'text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+        ['Engineer', 'Hours', '% of Project'].forEach(function(text) {
+          const th = document.createElement('th');
+          th.className = 'py-1.5 px-2';
+          if (text !== 'Engineer') th.className += ' text-right';
+          th.textContent = text;
+          headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        users.forEach(function(u) {
           const tr = document.createElement('tr');
-          tr.className = 'border-t';
+          tr.className = 'border-t border-gray-100';
 
-          const emailTd = document.createElement('td');
-          emailTd.className = 'py-1 px-2';
-          emailTd.textContent = user.displayName || user.userEmail;
-          if (user.displayName) {
-            emailTd.title = user.userEmail;
-          }
+          const nameTd = document.createElement('td');
+          nameTd.className = 'py-1.5 px-2 text-gray-700';
+          nameTd.textContent = u.displayName || u.userEmail;
+          if (u.displayName && u.userEmail) nameTd.title = u.userEmail;
 
           const hoursTd = document.createElement('td');
-          hoursTd.className = 'py-1 px-2';
-          hoursTd.textContent = user.totalHours;
+          hoursTd.className = 'py-1.5 px-2 text-right font-medium text-gray-800';
+          hoursTd.textContent = formatNumber(u.totalHours);
 
-          tr.appendChild(emailTd);
+          const sharePct = project.actualHours > 0 ? (u.totalHours / project.actualHours * 100) : 0;
+          const shareTd = document.createElement('td');
+          shareTd.className = 'py-1.5 px-2 text-right text-gray-500';
+          shareTd.textContent = sharePct.toFixed(0) + '%';
+
+          tr.appendChild(nameTd);
           tr.appendChild(hoursTd);
-          utBody.appendChild(tr);
+          tr.appendChild(shareTd);
+          tbody.appendChild(tr);
         });
-        userTable.appendChild(utBody);
-        body.appendChild(userTable);
+        table.appendChild(tbody);
+        body.appendChild(table);
 
-        header.addEventListener('click', () => {
-          body.classList.toggle('hidden');
+        // Toggle expand/collapse
+        header.addEventListener('click', function() {
+          body.classList.toggle('open');
+          chevron.classList.toggle('open');
         });
 
-        section.appendChild(header);
-        section.appendChild(body);
-        container.appendChild(section);
+        card.appendChild(header);
+        card.appendChild(body);
+        breakdownContainer.appendChild(card);
       });
+    });
+
+    // --- Summary Stats Bar ---
+    const summaryBar = document.createElement('div');
+    summaryBar.className = 'mt-4 bg-white rounded-lg shadow-sm border border-gray-200 px-5 py-3';
+    const summaryInner = document.createElement('div');
+    summaryInner.className = 'flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-gray-600';
+
+    let overCount = 0, approachCount = 0, trackCount = 0, totalActual = 0, totalBudget = 0;
+    sorted.forEach(function(p) {
+      const util = getUtilization(p);
+      if (util > 1.0) overCount++;
+      else if (util >= 0.8) approachCount++;
+      else trackCount++;
+      totalActual += p.actualHours;
+      totalBudget += p.budgetHours;
+    });
+
+    function createStatItem(dotColor, count, label) {
+      const span = document.createElement('span');
+      span.className = 'flex items-center';
+      const dot = document.createElement('span');
+      dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background-color:' + dotColor;
+      span.appendChild(dot);
+      const num = document.createElement('span');
+      num.className = 'font-medium text-gray-800';
+      num.textContent = count;
+      span.appendChild(num);
+      span.appendChild(document.createTextNode('\u00A0' + label));
+      return span;
     }
 
-    // Summary for on-budget projects
-    const onBudgetProjects = analytics.filter(p => !p.isOverBudget && p.budgetHours > 0);
-    if (onBudgetProjects.length > 0) {
-      const sectionTitle = document.createElement('h4');
-      sectionTitle.className = 'text-lg font-bold text-green-600 mt-6 mb-3';
-      sectionTitle.textContent = 'On-Budget Projects';
-      container.appendChild(sectionTitle);
+    summaryInner.appendChild(createStatItem('#EF4444', overCount, 'over budget'));
+    summaryInner.appendChild(createStatItem('#F59E0B', approachCount, 'approaching'));
+    summaryInner.appendChild(createStatItem('#10B981', trackCount, 'under budget'));
 
-      onBudgetProjects.forEach(proj => {
-        const row = document.createElement('div');
-        row.className = 'flex justify-between items-center py-2 px-4 border-b';
+    const divider = document.createElement('span');
+    divider.className = 'text-gray-400';
+    divider.textContent = '|';
+    summaryInner.appendChild(divider);
 
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'text-sm';
-        nameSpan.textContent = proj.projectName;
+    const totals = document.createElement('span');
+    totals.appendChild(document.createTextNode('Total: '));
+    const actualSpan = document.createElement('span');
+    actualSpan.className = 'font-medium text-gray-800';
+    actualSpan.textContent = formatNumber(totalActual);
+    totals.appendChild(actualSpan);
+    totals.appendChild(document.createTextNode(' actual / '));
+    const budgetSpan = document.createElement('span');
+    budgetSpan.className = 'font-medium text-gray-800';
+    budgetSpan.textContent = formatNumber(totalBudget);
+    totals.appendChild(budgetSpan);
+    totals.appendChild(document.createTextNode(' budget hrs'));
+    summaryInner.appendChild(totals);
 
-        const statsSpan = document.createElement('span');
-        statsSpan.className = 'text-sm text-slate-500';
-        statsSpan.textContent = proj.actualHours + ' / ' + proj.budgetHours + ' hrs';
-
-        row.appendChild(nameSpan);
-        row.appendChild(statsSpan);
-        container.appendChild(row);
-      });
-    }
+    summaryBar.appendChild(summaryInner);
+    container.appendChild(summaryBar);
   }
 
 })();

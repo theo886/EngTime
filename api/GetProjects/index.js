@@ -37,6 +37,7 @@ module.exports = async function (context, req) {
                 id: entity.rowKey,
                 name: entity.name || '',
                 color: entity.color || '#808080',
+                description: entity.description || '',
                 isActive: entity.isActive !== false,
                 budgetQ1: entity.budgetQ1 || 0,
                 budgetQ2: entity.budgetQ2 || 0,

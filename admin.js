@@ -136,7 +136,7 @@
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
     headerRow.className = 'border-b text-left text-slate-500';
-    ['Color', 'ID', 'Name', 'Status', 'Actions'].forEach(text => {
+    ['Color', 'ID', 'Name', 'Description', 'Status', 'Actions'].forEach(text => {
       const th = document.createElement('th');
       th.className = 'py-2 px-2';
       th.textContent = text;
@@ -164,6 +164,15 @@
       const nameTd = document.createElement('td');
       nameTd.className = 'py-2 px-2';
       nameTd.textContent = project.name;
+
+      const descTd = document.createElement('td');
+      descTd.className = 'py-2 px-2';
+      const descWrap = document.createElement('div');
+      descWrap.className = 'truncate text-slate-500';
+      descWrap.style.maxWidth = '260px';
+      descWrap.textContent = project.description || '';
+      descWrap.title = project.description || '';
+      descTd.appendChild(descWrap);
 
       const statusTd = document.createElement('td');
       statusTd.className = 'py-2 px-2';
@@ -194,6 +203,7 @@
       tr.appendChild(colorTd);
       tr.appendChild(idTd);
       tr.appendChild(nameTd);
+      tr.appendChild(descTd);
       tr.appendChild(statusTd);
       tr.appendChild(actionsTd);
       tbody.appendChild(tr);
@@ -251,6 +261,21 @@
     nameGroup.appendChild(nameInput);
     grid.appendChild(nameGroup);
 
+    // Description field (full width)
+    const descGroup = document.createElement('div');
+    descGroup.className = 'col-span-2';
+    const descLabel = document.createElement('label');
+    descLabel.className = 'block text-xs text-slate-500 mb-1';
+    descLabel.textContent = 'Description';
+    const descInput = document.createElement('textarea');
+    descInput.id = 'pf-description';
+    descInput.rows = 3;
+    descInput.className = 'w-full px-3 py-2 border rounded text-sm';
+    descInput.value = existingProject?.description || '';
+    descGroup.appendChild(descLabel);
+    descGroup.appendChild(descInput);
+    grid.appendChild(descGroup);
+
     // Color field
     const colorGroup = document.createElement('div');
     const colorLabel = document.createElement('label');
@@ -296,6 +321,7 @@
       const id = idInput.value.trim();
       const name = nameInput.value.trim();
       const color = colorInput.value;
+      const description = descInput.value.trim();
 
       if (!id || !name) {
         errorEl.textContent = 'All fields are required.';
@@ -307,7 +333,7 @@
         const resp = await fetch('/api/UpdateProject', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId: id, name, color, isActive: existingProject?.isActive !== false })
+          body: JSON.stringify({ projectId: id, name, color, description, isActive: existingProject?.isActive !== false })
         });
         if (!resp.ok) throw new Error(await resp.text());
         form.remove();

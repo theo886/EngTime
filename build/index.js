@@ -363,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function() {
                       </svg>
                       Settings
                     </a>
-                    <a href="/.auth/logout?post_logout_redirect_uri=/" id="logout-button" class="flex items-center">
+                    <a href="#" id="logout-button" class="flex items-center">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                         <polyline points="16 17 21 12 16 7"></polyline>
@@ -465,8 +465,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 <span id="total-percentage" class=""></span>
               </div>
             </div>
+
+            <div class="mt-6 pt-4 border-t">
+              <button id="project-reference-toggle" type="button" class="w-full flex items-center justify-between text-left text-sm font-semibold text-slate-600 hover:text-slate-800">
+                <span>Project Reference</span>
+                <svg id="project-reference-chevron" class="h-4 w-4 text-slate-400 transition-transform" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+              <div id="project-reference-list" class="mt-3 max-h-64 overflow-y-auto space-y-1 pr-1"></div>
+            </div>
           </div>
-          
+
           <div class="border-t p-4 pb-6 bg-slate-50 flex justify-center items-center h-8">
             <!-- Footer space -->
           </div>
@@ -476,10 +484,22 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function initializeEventListeners() {
+    // --- Project Reference toggle ---
+    const refToggle = document.getElementById('project-reference-toggle');
+    if (refToggle) {
+      refToggle.addEventListener('click', () => {
+        const list = document.getElementById('project-reference-list');
+        const chevron = document.getElementById('project-reference-chevron');
+        if (list) list.classList.toggle('hidden');
+        if (chevron) chevron.classList.toggle('-rotate-90');
+      });
+    }
+
     // --- Auth Buttons ---
     const loginButton = document.getElementById('login-button');
     if (loginButton) {
         loginButton.addEventListener('click', () => {
+            localStorage.removeItem('engtime_logged_out');
             window.location.href = '/.auth/login/aad'; // Redirect to Azure AD login
         });
     }
@@ -502,9 +522,14 @@ document.addEventListener('DOMContentLoaded', function() {
              }
         });
     }
-    // Note: Logout is handled by the href in createInitialHTML
-    // const logoutButton = document.getElementById('logout-button');
-    // if (logoutButton) { ... }
+    const logoutButton = document.getElementById('logout-button');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            localStorage.setItem('engtime_logged_out', 'true');
+            window.location.href = '/.auth/logout?post_logout_redirect_uri=/';
+        });
+    }
 
     // --- Other Buttons ---
     document.getElementById('prev-week-button').addEventListener('click', goToPreviousWeek);
@@ -620,7 +645,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Render entries
     renderEntries();
-    
+
+    // Render the project reference list (re-populates rows; toggle state persists on the container)
+    renderProjectReference();
+
     // Update total percentage
     const total = calculateTotalWrapper();
     const totalDisplay = document.getElementById('total-percentage');
@@ -672,6 +700,46 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     // --- End Disable/Enable Next Week Button ---
+  }
+
+  function renderProjectReference() {
+    const listEl = document.getElementById('project-reference-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    if (!projects || projects.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'px-1 py-2 text-sm text-slate-400';
+      empty.textContent = 'No projects available.';
+      listEl.appendChild(empty);
+      return;
+    }
+
+    projects.forEach(project => {
+      const row = document.createElement('div');
+      row.className = 'flex items-start space-x-2 px-1 py-1 text-sm';
+
+      const colorDot = document.createElement('span');
+      colorDot.className = 'inline-block w-3 h-3 rounded-full flex-shrink-0 mt-1';
+      colorDot.style.backgroundColor = project.color || '#808080';
+
+      const text = document.createElement('span');
+      text.className = 'leading-snug';
+
+      const code = document.createElement('span');
+      code.className = 'font-mono font-medium text-slate-700';
+      code.textContent = project.id;
+      text.appendChild(code);
+
+      const rest = document.createElement('span');
+      rest.className = 'text-slate-600';
+      rest.textContent = ` — ${project.name}` + (project.description ? ` — ${project.description}` : '');
+      text.appendChild(rest);
+
+      row.appendChild(colorDot);
+      row.appendChild(text);
+      listEl.appendChild(row);
+    });
   }
 
   function renderEntries() {
@@ -1939,6 +2007,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Placeholder for admin page — implemented in Phase 3
   function showAdminPage() {
+    if (!isAdmin) return;
     document.getElementById('weekly-tracker').classList.add('hidden');
     document.getElementById('reports-container').classList.add('hidden');
     const adminContainer = document.getElementById('admin-container');
@@ -1989,8 +2058,14 @@ document.addEventListener('DOMContentLoaded', function() {
         loadingIndicator?.classList.remove('hidden');
 
         // Use the existing function to get user info
-        userInfo = await getUserInfoFromAuthEndpoint(); 
+        userInfo = await getUserInfoFromAuthEndpoint();
         console.log("User info from checkAuthStatus:", userInfo);
+
+        // If user explicitly logged out, override auth status
+        if (userInfo && localStorage.getItem('engtime_logged_out') === 'true') {
+            console.log("User explicitly logged out — ignoring active session");
+            userInfo = null;
+        }
 
         if (userInfo) {
             // Domain restriction check
@@ -2014,9 +2089,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 userMsg.textContent = 'You are signed in as ' + (userInfo.userDetails || 'unknown') + '.';
 
                 const logoutLink = document.createElement('a');
-                logoutLink.href = '/.auth/logout';
-                logoutLink.style.cssText = 'padding:0.5rem 1.5rem;background:#2563eb;color:white;border-radius:0.375rem;text-decoration:none;font-weight:500;';
-                logoutLink.textContent = 'Sign Out';
+                logoutLink.href = '#';
+                logoutLink.style.cssText = 'padding:0.5rem 1.5rem;background:#2563eb;color:white;border-radius:0.375rem;text-decoration:none;font-weight:500;cursor:pointer;';
+                logoutLink.textContent = 'Sign in with a different account';
+                logoutLink.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    localStorage.setItem('engtime_logged_out', 'true');
+                    // Clear AAD "remain signed in" cookie so account picker shows on next login
+                    window.location.href = 'https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=' + encodeURIComponent(window.location.origin);
+                });
 
                 wrapper.appendChild(heading);
                 wrapper.appendChild(msg);
@@ -2239,7 +2320,7 @@ document.addEventListener('DOMContentLoaded', function() {
         userNameSpan.textContent = userInfo.displayName;
       } else {
         // Get base username (before '@')
-        let baseUsername = userInfo.userId; // Fallback to userId
+        let baseUsername = userInfo.userDetails || ''; // Fallback to email
         if (userInfo.userDetails) {
           baseUsername = userInfo.userDetails.includes('@') ? userInfo.userDetails.split('@')[0] : userInfo.userDetails;
         }
@@ -2263,8 +2344,10 @@ document.addEventListener('DOMContentLoaded', function() {
       if (adminLink) {
         if (isAdmin) {
           adminLink.classList.remove('hidden');
+          adminLink.style.display = '';
         } else {
           adminLink.classList.add('hidden');
+          adminLink.style.display = 'none';
         }
       }
 
@@ -2289,6 +2372,11 @@ document.addEventListener('DOMContentLoaded', function() {
           userNameSpan.textContent = 'User'; // Reset placeholder
       } else {
           console.error("updateAuthUI: userNameSpan not found!"); // DEBUG
+      }
+      const adminLink = document.getElementById('admin-link');
+      if (adminLink) {
+        adminLink.classList.add('hidden');
+        adminLink.style.display = 'none';
       }
     }
   }

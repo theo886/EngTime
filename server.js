@@ -38,9 +38,9 @@ const MOCK_API = {
     { email: 'klee@energyrecovery.com', displayName: 'Karen Lee', isAdmin: false, defaultInputMode: 'hours', firstSeen: '2025-08-15T00:00:00Z', lastSeen: '2026-02-12T00:00:00Z' }
   ],
   '/api/GetProjects': [
-    { id: 'CP000022', name: 'General R&D Infrastructure', color: '#3498DB', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
-    { id: 'CP000038', name: 'Skid Changeover Costs', color: '#E74C3C', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
-    { id: 'CP000039', name: 'Unapplied Engineering Time', color: '#2ECC71', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: true, defaultPercentage: 15 },
+    { id: 'CP000022', name: 'General R&D Infrastructure', color: '#3498DB', description: 'Shared lab equipment, tooling, and infrastructure work not tied to a single product.', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
+    { id: 'CP000038', name: 'Skid Changeover Costs', color: '#E74C3C', description: 'Time spent reconfiguring test skids between projects.', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
+    { id: 'CP000039', name: 'Unapplied Engineering Time', color: '#2ECC71', description: 'Default bucket for general engineering time that does not map to a specific project code — use this when nothing else fits and you still need to account for the hours.', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: true, defaultPercentage: 15 },
     { id: 'DD000200', name: 'Water Default Project Code', color: '#3498DB', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
     { id: 'DD000210', name: 'Waste Water Default Project Code', color: '#2C3E50', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
     { id: 'GE000001', name: 'Time Off / Holiday', color: '#95A5A6', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
@@ -51,7 +51,7 @@ const MOCK_API = {
     { id: 'RD000042', name: 'PX G 1300 Product Support', color: '#34495E', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
     { id: 'RD000048', name: 'DOE - PXG for Heat Pump', color: '#8E44AD', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
     { id: 'RD000049', name: 'PXG V2.5 Integration', color: '#E91E63', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
-    { id: 'RD000050', name: 'Eductor', color: '#5D6D7E', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
+    { id: 'RD000050', name: 'Eductor', color: '#5D6D7E', description: 'Eductor development program.', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
     { id: 'RD000051', name: 'PX Lite', color: '#48C9B0', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
     { id: 'VQ000003', name: 'R&D Technology Pipeline', color: '#AF7AC5', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },
     { id: 'VQ000008', name: 'Water Sales Support', color: '#27AE60', isActive: true, budgetQ1: 0, budgetQ2: 0, budgetQ3: 0, budgetQ4: 0, isDefault: false, defaultPercentage: 0 },

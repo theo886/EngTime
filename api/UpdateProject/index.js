@@ -25,7 +25,7 @@ module.exports = async function (context, req) {
         return;
     }
 
-    const { projectId, name, color, isActive, budgetQ1, budgetQ2, budgetQ3, budgetQ4, isDefault, defaultPercentage } = req.body || {};
+    const { projectId, name, color, description, isActive, budgetQ1, budgetQ2, budgetQ3, budgetQ4, isDefault, defaultPercentage } = req.body || {};
 
     if (!projectId || !name) {
         context.res = { status: 400, body: "Missing required fields: 'projectId', 'name'." };
@@ -38,6 +38,7 @@ module.exports = async function (context, req) {
             rowKey: projectId,
             name: name,
             color: color || '#808080',
+            description: description || '',
             isActive: isActive !== false, // defaults to true
             updatedAt: new Date(),
             updatedBy: userEmail
