@@ -471,32 +471,35 @@ document.addEventListener('DOMContentLoaded', function() {
               </div>
             </div>
 
-            <div class="mt-6 pt-4 border-t">
-              <div class="flex items-center justify-between gap-2">
-                <button id="project-reference-toggle" type="button" class="flex items-center gap-1.5 text-left text-sm font-semibold text-slate-600 hover:text-slate-800">
-                  <span>Project Reference</span>
-                  <svg id="project-reference-chevron" class="h-4 w-4 text-slate-400 transition-transform" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                </button>
-                <div class="flex items-center gap-0.5">
-                  <div class="relative">
-                    <svg class="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                    <input id="project-reference-search" type="text" placeholder="Search projects" autocomplete="off" class="w-32 sm:w-44 pl-7 pr-2 py-1 text-sm border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300" />
-                  </div>
-                  <span id="project-reference-count" class="text-xs text-slate-400 tabular-nums text-center empty:hidden px-0.5"></span>
-                  <button id="project-reference-prev" type="button" title="Previous match" disabled class="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-default disabled:hover:text-slate-400">
-                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
-                  </button>
-                  <button id="project-reference-next" type="button" title="Next match" disabled class="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-default disabled:hover:text-slate-400">
-                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                  </button>
-                </div>
-              </div>
-              <div id="project-reference-list" class="mt-2 max-h-72 overflow-y-auto divide-y divide-slate-100 pr-1"></div>
-            </div>
           </div>
 
           <div class="border-t p-4 pb-6 bg-slate-50 flex justify-center items-center h-8">
             <!-- Footer space -->
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden mt-4">
+          <div class="p-6">
+            <div class="flex items-center justify-between gap-2">
+              <button id="project-reference-toggle" type="button" class="flex items-center gap-1.5 text-left text-sm font-semibold text-slate-600 hover:text-slate-800">
+                <span>Project Reference</span>
+                <svg id="project-reference-chevron" class="h-4 w-4 text-slate-400 transition-transform" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+              <div class="flex items-center gap-0.5">
+                <div class="relative">
+                  <svg class="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <input id="project-reference-search" type="text" placeholder="Search projects" autocomplete="off" class="w-32 sm:w-44 pl-7 pr-2 py-1 text-sm border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300" />
+                </div>
+                <span id="project-reference-count" class="text-xs text-slate-400 tabular-nums text-center empty:hidden px-0.5"></span>
+                <button id="project-reference-prev" type="button" title="Previous match" disabled class="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-default disabled:hover:text-slate-400">
+                  <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                </button>
+                <button id="project-reference-next" type="button" title="Next match" disabled class="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-default disabled:hover:text-slate-400">
+                  <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+              </div>
+            </div>
+            <div id="project-reference-list" class="mt-2 max-h-72 overflow-y-auto divide-y divide-slate-100 pr-1"></div>
           </div>
         </div>
       </div>
