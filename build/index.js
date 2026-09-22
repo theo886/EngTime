@@ -35,6 +35,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let isAdmin = false; // Whether current user is an admin
   let timeSeriesChartInstance = null;
   let pieChartInstance = null;
+  // Future weeks exist so people can prefill time away — real project work can't be logged ahead.
+  const FUTURE_WEEK_ALLOWED_PROJECT_IDS = ['GE000001', 'CP000039']; // Time Off / Holiday, Unapplied Engineering Time
   
   // // Load fake data for testing if in debug mode
   // if (debugMode) {
@@ -136,6 +138,44 @@ document.addEventListener('DOMContentLoaded', function() {
     const monday = new Date(d.setDate(diff));
     monday.setHours(0, 0, 0, 0); // Reset time to start of day
     return monday;
+  }
+
+  // Display-only week range with no year, e.g. "9/7 - 9/13". formatWeekRange keeps the
+  // year because it is the cache key and the Power Automate `week` field — never swap them.
+  function formatWeekRangeDisplay(startDate) {
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 6);
+    const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
+    return `${fmt(startDate)} - ${fmt(endDate)}`;
+  }
+
+  // How far the viewed week is from the real current week, as a label ('' for the current
+  // week). Shown beside the week title so someone catching up on an old week can't mistake
+  // it for this one — findFirstUnfilledWeek() lands users on their oldest gap silently.
+  function getWeekOffsetLabel(weekStart, now = new Date()) {
+    const realWeek = getStartOfWeek(now);
+    const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+    const diff = Math.round((weekStart.getTime() - realWeek.getTime()) / msPerWeek); // round absorbs DST hour
+    if (diff === 0) return '';
+    if (diff === -1) return 'Last week';
+    if (diff === 1) return 'Next week';
+    return diff < 0 ? `${-diff} weeks ago` : `${diff} weeks ahead`;
+  }
+
+  function isFutureWeek(weekStart, now = new Date()) {
+    return weekStart.getTime() > getStartOfWeek(now).getTime();
+  }
+
+  // '' when fine, else the error to show. Rows with no project selected are ignored.
+  function validateFutureWeekEntries(entries, weekStart, now = new Date()) {
+    if (!isFutureWeek(weekStart, now)) return '';
+    const hasDisallowed = entries.some(e => e.projectId && !FUTURE_WEEK_ALLOWED_PROJECT_IDS.includes(e.projectId));
+    if (!hasDisallowed) return '';
+    const names = FUTURE_WEEK_ALLOWED_PROJECT_IDS.map(id => {
+      const project = projects.find(p => String(p.id) === id);
+      return project ? project.name : id;
+    });
+    return `Future weeks can only include ${names.join(' or ')}`;
   }
 
   // Find the first unfilled (unsubmitted) week starting from the earliest known data
@@ -434,6 +474,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   </svg>
                 </button>
                 <span id="week-display" class="text-lg font-semibold text-slate-800 text-center max-w-full break-words px-2"></span>
+                <span id="week-offset-badge" class="hidden ml-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-medium whitespace-nowrap"></span>
               </div>
               
               <button id="next-week-button" class="text-slate-600 hover:bg-slate-100 p-2 rounded">
@@ -669,7 +710,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function render() {
     // Update week display
-    document.getElementById('week-display').textContent = `Week of ${formatWeekRange(currentWeek)}`;
+    document.getElementById('week-display').textContent = `Week of ${formatWeekRangeDisplay(currentWeek)}`;
+    const offsetBadge = document.getElementById('week-offset-badge');
+    const offsetLabel = getWeekOffsetLabel(currentWeek);
+    offsetBadge.textContent = offsetLabel;
+    offsetBadge.classList.toggle('hidden', !offsetLabel);
     
     // Update pin button
     const pinButton = document.getElementById('pin-button');
@@ -1241,6 +1286,7 @@ document.addEventListener('DOMContentLoaded', function() {
          entryInputModes = {};
          isSubmitted = false; // Treat pinned week as not submitted yet
          isModified = false;
+         validateEntriesWrapper(); // Re-check rules for the new week (e.g. future-week restriction)
          render(); // Render immediately with pinned data
     } else {
         // Use the cache
@@ -1265,6 +1311,7 @@ document.addEventListener('DOMContentLoaded', function() {
          entryInputModes = {};
          isSubmitted = false; // Treat pinned week as not submitted yet
          isModified = false;
+         validateEntriesWrapper(); // Re-check rules for the new week (e.g. future-week restriction)
          render(); // Render immediately with pinned data
     } else {
         // Use the cache
@@ -1463,7 +1510,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function validateEntriesWrapper() {
-    error = validateEntries(entries);
+    error = validateEntries(entries) || validateFutureWeekEntries(entries, currentWeek);
   }
 
   function isDuplicateProject(projectId) {
@@ -2350,6 +2397,12 @@ document.addEventListener('DOMContentLoaded', function() {
         render();
         return;
     }
+    const futureWeekError = validateFutureWeekEntries(allocationEntries, currentWeek);
+    if (futureWeekError) {
+        error = futureWeekError;
+        render();
+        return;
+    }
     // --- End Validations ---
 
     const submitButton = document.getElementById('submit-button');
@@ -2460,6 +2513,7 @@ document.addEventListener('DOMContentLoaded', function() {
         isModified = false;
     }
     entryInputModes = {}; // Reset input modes
+    validateEntriesWrapper(); // Re-check rules for the new week (e.g. future-week restriction)
     render(); // Render the UI with the populated/reset entries
   }
   // --- END: New function ---
