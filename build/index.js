@@ -178,7 +178,14 @@ document.addEventListener('DOMContentLoaded', function() {
     return `Future weeks can only include ${names.join(' or ')}`;
   }
 
-  // Find the first unfilled (unsubmitted) week starting from the earliest known data
+  // Only gaps inside this many recent weeks (the current week plus the 11 before it) count
+  // as "unfilled". Older history is ignored so a leave, school break, or employment gap
+  // months ago doesn't become the landing week on every visit (one user had to click
+  // through 20 weeks to reach the current one).
+  const UNFILLED_WEEK_LOOKBACK = 12;
+
+  // Find the first unfilled (unsubmitted) week, starting from the earliest week with data
+  // inside the lookback window. Weeks before that boundary are never treated as gaps.
   function findFirstUnfilledWeek() {
     const today = new Date();
     const startOfCurrentRealWeek = getStartOfWeek(today);
@@ -191,8 +198,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Walk backwards from current week to find earliest week with data (start boundary)
     let searchWeek = new Date(startOfCurrentRealWeek);
     let earliestWithData = null;
-    // Search up to 52 weeks back
-    for (let i = 0; i < 52; i++) {
+    for (let i = 0; i < UNFILLED_WEEK_LOOKBACK; i++) {
       const weekKey = formatWeekRange(searchWeek);
       if (allTimesheetDataCache[weekKey]) {
         earliestWithData = new Date(searchWeek);
